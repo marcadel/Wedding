@@ -267,7 +267,7 @@
     color:var(--ink);
   }
   .plusone-name{max-height:0; overflow:hidden; transition:max-height .3s ease;}
-  .plusone-name.open{max-height:100px;}
+  .plusone-name.open{max-height:220px;}
   .submit-btn{
     width:100%;
     padding:16px;
@@ -874,6 +874,10 @@ window.storage = {
       attending = btn.dataset.attend;
       document.querySelectorAll('[data-attend]').forEach(b=>b.setAttribute('aria-pressed', b===btn));
       document.getElementById('plusone-field').style.display = attending==='yes' ? '' : 'none';
+      if(attending !== 'yes'){
+        document.getElementById('plusone-first-name').required = false;
+        document.getElementById('plusone-last-name').required = false;
+      }
     });
   });
   document.querySelectorAll('[data-plusone]').forEach(btn=>{
@@ -881,6 +885,8 @@ window.storage = {
       plusOne = btn.dataset.plusone;
       document.querySelectorAll('[data-plusone]').forEach(b=>b.setAttribute('aria-pressed', b===btn));
       document.getElementById('plusone-name-wrap').classList.toggle('open', plusOne==='yes');
+      document.getElementById('plusone-first-name').required = (plusOne==='yes');
+      document.getElementById('plusone-last-name').required = (plusOne==='yes');
     });
   });
 
@@ -897,10 +903,34 @@ window.storage = {
     const plusOneFirst = document.getElementById('plusone-first-name').value.trim();
     const plusOneLast = document.getElementById('plusone-last-name').value.trim();
     const plusOneName = `${plusOneFirst} ${plusOneLast}`.trim();
-    submitBtn.disabled = true;
-    statusEl.textContent = 'Sending…';
+
+    if(attending==='yes' && plusOne==='yes' && (!plusOneFirst || !plusOneLast)){
+      statusEl.textContent = "Please enter your +1's first and last name.";
+      document.getElementById('plusone-first-name').focus();
+      return;
+    }
 
     const key = 'rsvp:' + slugify(name);
+
+    // Check for an existing record under this name before saving anything.
+    statusEl.textContent = 'Checking…';
+    submitBtn.disabled = true;
+    let existing = null;
+    try{ existing = await safeGet(key); }catch(_){}
+
+    if(existing){
+      statusEl.textContent = '';
+      const proceed = window.confirm(
+        `It looks like ${name} already RSVP'd. Submitting again will update that existing response. Continue?`
+      );
+      if(!proceed){
+        submitBtn.disabled = false;
+        statusEl.textContent = 'RSVP not changed.';
+        return;
+      }
+    }
+
+    statusEl.textContent = 'Sending…';
     const data = {
       name, attending, plusOne: attending==='yes' ? plusOne : 'no',
       plusOneName: (attending==='yes' && plusOne==='yes') ? plusOneName : '',
@@ -909,7 +939,6 @@ window.storage = {
       submittedAtMs: Date.now()
     };
     try{
-      const existing = await safeGet(key);
       if(existing){
         try{ const prev = JSON.parse(existing.value); data.tableNumber = prev.tableNumber || null; }catch(_){}
       }
