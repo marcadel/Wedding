@@ -631,8 +631,12 @@
 
     <form id="rsvp-form">
       <div class="field">
-        <label for="guest-name">Your Full Name</label>
-        <input type="text" id="guest-name" required autocomplete="name">
+        <label for="guest-first-name">First Name</label>
+        <input type="text" id="guest-first-name" required autocomplete="given-name">
+      </div>
+      <div class="field">
+        <label for="guest-last-name">Last Name</label>
+        <input type="text" id="guest-last-name" required autocomplete="family-name">
       </div>
 
       <div class="field">
@@ -651,8 +655,12 @@
         </div>
         <div class="plusone-name" id="plusone-name-wrap">
           <div class="field" style="margin-top:16px;">
-            <label for="plusone-name">Guest's Name</label>
-            <input type="text" id="plusone-name" autocomplete="name">
+            <label for="plusone-first-name">Guest's First Name</label>
+            <input type="text" id="plusone-first-name" autocomplete="given-name">
+          </div>
+          <div class="field">
+            <label for="plusone-last-name">Guest's Last Name</label>
+            <input type="text" id="plusone-last-name" autocomplete="family-name">
           </div>
         </div>
       </div>
@@ -882,9 +890,13 @@ window.storage = {
 
   form.addEventListener('submit', async (e)=>{
     e.preventDefault();
-    const name = document.getElementById('guest-name').value.trim();
-    if(!name){ return; }
-    const plusOneName = document.getElementById('plusone-name').value.trim();
+    const firstName = document.getElementById('guest-first-name').value.trim();
+    const lastName = document.getElementById('guest-last-name').value.trim();
+    const name = `${firstName} ${lastName}`.trim();
+    if(!firstName || !lastName){ return; }
+    const plusOneFirst = document.getElementById('plusone-first-name').value.trim();
+    const plusOneLast = document.getElementById('plusone-last-name').value.trim();
+    const plusOneName = `${plusOneFirst} ${plusOneLast}`.trim();
     submitBtn.disabled = true;
     statusEl.textContent = 'Sending…';
 
