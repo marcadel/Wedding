@@ -160,6 +160,15 @@
     font-size:11px; padding:6px 12px; text-transform:uppercase; letter-spacing:0.05em; cursor:pointer;
   }
   table.guest-table button.save-row:hover{background:var(--gold); color:var(--cream);}
+  .side-select, .category-select{
+    display:block; width:100%; font-family:'Jost',sans-serif; font-size:12px;
+    border:1px solid var(--line); background:var(--cream); padding:5px 6px;
+  }
+  table.guest-table button.delete-row{
+    background:none; border:1px solid #c98a8a; color:#b0645f;
+    font-size:13px; padding:6px 10px; cursor:pointer;
+  }
+  table.guest-table button.delete-row:hover{background:#c98a8a; color:#fff;}
   .loading-note{font-family:'Jost',sans-serif; font-size:13px; color:#7a7268; padding:20px 0;}
   .pill{
     display:inline-block; padding:2px 9px; border-radius:20px; font-size:11px;
@@ -313,6 +322,11 @@ function renderSeating(){
   }
 }
 
+const CATEGORY_OPTIONS = {
+  marc: ["Marc's Family","Marc's Church Friends","Marc's Work Friends","Marc's University Friends","Marc's School Friends","Marc's Army Friends"],
+  nancy: ["Nancy's Family","Nancy's Church Friends","Nancy's Work Friends","Nancy's University Friends","Nancy's School Friends"]
+};
+
 function renderTable(){
   const wrap = document.getElementById('table-wrap');
   const q = document.getElementById('search-input').value.trim().toLowerCase();
@@ -324,24 +338,49 @@ function renderTable(){
   const tbl = document.createElement('table');
   tbl.className = 'guest-table';
   tbl.innerHTML = `<thead><tr>
-    <th>Name</th><th>Status</th><th>+1</th><th>Submitted</th><th>Table</th><th></th>
+    <th>Name</th><th>Status</th><th>+1</th><th>Submitted</th><th>Relation</th><th>Table</th><th></th><th></th>
   </tr></thead><tbody></tbody>`;
   const tbody = tbl.querySelector('tbody');
   filtered.forEach(({key, data})=>{
     const tr = document.createElement('tr');
+    const currentSide = data.side || '';
+    const sideOptionsHTML = `
+      <option value="" ${currentSide==='' ? 'selected':''}>—</option>
+      <option value="marc" ${currentSide==='marc' ? 'selected':''}>Marc</option>
+      <option value="nancy" ${currentSide==='nancy' ? 'selected':''}>Nancy</option>
+    `;
     tr.innerHTML = `
       <td>${data.name}</td>
       <td><span class="pill ${data.attending==='yes' ? 'yes':'no'}">${data.attending==='yes' ? 'Attending':'Declined'}</span></td>
       <td>${data.plusOne==='yes' ? (data.plusOneName || 'Yes') : '—'}</td>
       <td>${data.submittedAt || '—'}</td>
+      <td>
+        <select class="side-select">${sideOptionsHTML}</select>
+        <select class="category-select" style="margin-top:4px;"><option value="">—</option></select>
+      </td>
       <td><input type="number" min="1" value="${data.tableNumber || ''}" ${data.attending!=='yes' ? 'disabled':''}></td>
       <td><button class="save-row" ${data.attending!=='yes' ? 'disabled':''}>Save</button></td>
+      <td><button class="delete-row" title="Delete this RSVP">🗑</button></td>
     `;
     const input = tr.querySelector('input');
     const btn = tr.querySelector('.save-row');
+    const delBtn = tr.querySelector('.delete-row');
+    const sideSelect = tr.querySelector('.side-select');
+    const categorySelect = tr.querySelector('.category-select');
+
+    function populateCategories(selectedValue){
+      const opts = CATEGORY_OPTIONS[sideSelect.value] || [];
+      categorySelect.innerHTML = '<option value="">—</option>' +
+        opts.map(c => `<option value="${c}" ${c===selectedValue ? 'selected':''}>${c}</option>`).join('');
+    }
+    populateCategories(data.category || '');
+    sideSelect.addEventListener('change', ()=> populateCategories(''));
+
     btn.addEventListener('click', async ()=>{
       const val = parseInt(input.value, 10);
       data.tableNumber = val || null;
+      data.side = sideSelect.value || '';
+      data.category = categorySelect.value || '';
       btn.textContent = 'Saving…';
       try{
         await db.collection(COLLECTION).doc(key).set({
@@ -356,6 +395,25 @@ function renderTable(){
         console.error(err);
       }
     });
+
+    delBtn.addEventListener('click', async ()=>{
+      const ok = window.confirm(`Delete ${data.name}'s RSVP? This cannot be undone.`);
+      if(!ok) return;
+      delBtn.textContent = '…';
+      delBtn.disabled = true;
+      try{
+        await db.collection(COLLECTION).doc(key).delete();
+        allEntries = allEntries.filter(e => e.key !== key);
+        renderStats();
+        renderSeating();
+        renderTable();
+      }catch(err){
+        delBtn.textContent = '🗑';
+        delBtn.disabled = false;
+        console.error(err);
+      }
+    });
+
     tbody.appendChild(tr);
   });
   wrap.innerHTML = '';
