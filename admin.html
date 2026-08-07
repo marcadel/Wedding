@@ -160,7 +160,7 @@
     font-size:11px; padding:6px 12px; text-transform:uppercase; letter-spacing:0.05em; cursor:pointer;
   }
   table.guest-table button.save-row:hover{background:var(--gold); color:var(--cream);}
-  .side-select, .category-select{
+  .side-select, .category-select, .table-select{
     display:block; width:100%; font-family:'Jost',sans-serif; font-size:12px;
     border:1px solid var(--line); background:var(--cream); padding:5px 6px;
   }
@@ -327,6 +327,28 @@ const CATEGORY_OPTIONS = {
   nancy: ["Nancy's Family","Nancy's Church Friends","Nancy's Work Friends","Nancy's University Friends","Nancy's School Friends"]
 };
 
+// PLACEHOLDER table ranges — replace these with your final layout once it's decided.
+// range(a,b) means tables a through b inclusive. Any category not listed here
+// falls back to its side's overall range, and if no side is chosen, all 50 tables show.
+function range(a,b){ const arr=[]; for(let i=a;i<=b;i++) arr.push(i); return arr; }
+const SIDE_RANGES = {
+  marc: range(1,20),
+  nancy: range(21,40)
+};
+const CATEGORY_RANGES = {
+  "Marc's Family": range(1,5)
+  // Add the rest once you send the final layout, e.g.:
+  // "Marc's Church Friends": range(6,9),
+  // "Nancy's Family": range(21,25),
+};
+const ALL_TABLES = range(1,50);
+
+function getTableOptions(side, category){
+  if(category && CATEGORY_RANGES[category]) return CATEGORY_RANGES[category];
+  if(side && SIDE_RANGES[side]) return SIDE_RANGES[side];
+  return ALL_TABLES;
+}
+
 function renderTable(){
   const wrap = document.getElementById('table-wrap');
   const q = document.getElementById('search-input').value.trim().toLowerCase();
@@ -358,11 +380,11 @@ function renderTable(){
         <select class="side-select">${sideOptionsHTML}</select>
         <select class="category-select" style="margin-top:4px;"><option value="">—</option></select>
       </td>
-      <td><input type="number" min="1" value="${data.tableNumber || ''}" ${data.attending!=='yes' ? 'disabled':''}></td>
+      <td><select class="table-select" ${data.attending!=='yes' ? 'disabled':''}></select></td>
       <td><button class="save-row" ${data.attending!=='yes' ? 'disabled':''}>Save</button></td>
       <td><button class="delete-row" title="Delete this RSVP">🗑</button></td>
     `;
-    const input = tr.querySelector('input');
+    const tableSelect = tr.querySelector('.table-select');
     const btn = tr.querySelector('.save-row');
     const delBtn = tr.querySelector('.delete-row');
     const sideSelect = tr.querySelector('.side-select');
@@ -373,11 +395,25 @@ function renderTable(){
       categorySelect.innerHTML = '<option value="">—</option>' +
         opts.map(c => `<option value="${c}" ${c===selectedValue ? 'selected':''}>${c}</option>`).join('');
     }
+    function populateTables(){
+      const opts = getTableOptions(sideSelect.value, categorySelect.value);
+      const current = data.tableNumber;
+      tableSelect.innerHTML = '<option value="">—</option>' +
+        opts.map(n => `<option value="${n}" ${n===current ? 'selected':''}>${n}</option>`).join('');
+      // If the guest's saved table isn't in the filtered list, still show it so we don't silently lose data.
+      if(current && !opts.includes(current)){
+        const opt = document.createElement('option');
+        opt.value = current; opt.textContent = `${current} (outside current range)`; opt.selected = true;
+        tableSelect.appendChild(opt);
+      }
+    }
     populateCategories(data.category || '');
-    sideSelect.addEventListener('change', ()=> populateCategories(''));
+    populateTables();
+    sideSelect.addEventListener('change', ()=>{ populateCategories(''); populateTables(); });
+    categorySelect.addEventListener('change', populateTables);
 
     btn.addEventListener('click', async ()=>{
-      const val = parseInt(input.value, 10);
+      const val = parseInt(tableSelect.value, 10);
       data.tableNumber = val || null;
       data.side = sideSelect.value || '';
       data.category = categorySelect.value || '';
