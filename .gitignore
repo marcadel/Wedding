@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor
+.vscode/
+*.swp
+
+# Local env / secrets (if you ever add any beyond the public Firebase client config)
+.env
+.env.local
+
+# Logs
+*.log

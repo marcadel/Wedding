@@ -1,0 +1,30 @@
+# Nancy & Marc's Wedding Invitation
+
+A single-page wedding invitation site with RSVP tracking, table-assignment QR codes, and calendar reminders — built for our wedding on **October 24, 2026** in Cairo.
+
+## What's inside
+
+- **Invitation** — ceremony & reception details, Mark 10:9, countdown timer
+- **RSVP** — guests confirm attendance and whether they're bringing a +1
+- **Table QR codes** — once we assign a guest's table, a QR code with their table number appears automatically when they revisit the site
+- **Add to Calendar** — one tap adds the ceremony/reception to a guest's phone calendar, so they get a native reminder the day before
+- **Admin panel** — tap the small monogram in the footer 5 times and enter the passcode to view all RSVPs and assign table numbers
+
+## Tech
+
+- Single static file: `index.html` (HTML/CSS/vanilla JS, no build step)
+- [Firebase Firestore](https://firebase.google.com/) (free Spark plan) for storing RSVPs
+- [QRCode.js](https://davidshimjs.github.io/qrcodejs/) for generating table QR codes
+- Hosted on [GitHub Pages](https://pages.github.com/)
+
+## Local development
+
+Just open `index.html` in a browser — no build step needed. To test Firestore writes locally, make sure the `firebaseConfig` in the `<script>` tag points to the live project (it already does).
+
+## Deployment
+
+Pushing to `main` and enabling GitHub Pages (Settings → Pages → Deploy from branch → main → /root) is all that's needed — GitHub serves `index.html` automatically.
+
+## Admin access
+
+The guest-list/table-assignment panel is hidden behind a passcode (`MN2026`) — tap the small monogram icon in the footer 5 times within a few seconds to trigger it.
