@@ -247,7 +247,7 @@ async function loadData(){
     const snap = await db.collection(COLLECTION).get();
     allEntries = [];
     snap.forEach(doc=>{
-      if(doc.id.startsWith('rsvp:')){
+      if(doc.id.startsWith('rsvp:') && doc.data() && typeof doc.data().name === 'string'){
         allEntries.push({ key: doc.id, data: doc.data() });
       }
     });

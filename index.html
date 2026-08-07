@@ -1023,7 +1023,10 @@ window.storage = {
       for(const k of keys){
         try{
           const r = await window.storage.get(k, true);
-          if(r) entries.push({key:k, data:JSON.parse(r.value)});
+          if(r){
+            const parsed = JSON.parse(r.value);
+            if(parsed && typeof parsed.name === 'string') entries.push({key:k, data:parsed});
+          }
         }catch(_){}
       }
       entries.sort((a,b)=> a.data.name.localeCompare(b.data.name));
