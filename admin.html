@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nancy & Marc — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --ink:#332C40;
+    --forest:#4B3F5E;
+    --forest-2:#6B5A82;
+    --ivory:#EBE5D9;
+    --ivory-2:#DDD5C4;
+    --gold:#9E83B8;
+    --gold-light:#CCBBDB;
+    --burgundy:#5C6B5E;
+    --cream:#F7F4EC;
+    --line: rgba(158,131,184,0.35);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--ivory);
+    color:var(--ink);
+    font-family:'EB Garamond', serif;
+    font-size:16px;
+  }
+  .label{
+    font-family:'Jost', sans-serif;
+    text-transform:uppercase;
+    letter-spacing:0.14em;
+    font-size:11px;
+    font-weight:500;
+    color:var(--gold);
+  }
+
+  /* ---------- GATE ---------- */
+  #gate{
+    position:fixed; inset:0;
+    background:linear-gradient(160deg, var(--ink) 0%, var(--forest) 55%, var(--forest-2) 100%);
+    display:flex; align-items:center; justify-content:center;
+    z-index:10;
+  }
+  #gate.hidden{display:none;}
+  .gate-box{
+    text-align:center;
+    color:var(--cream);
+    padding:20px;
+  }
+  .gate-box h1{
+    font-family:'Cormorant Garamond', serif;
+    font-weight:500;
+    font-size:34px;
+    margin:0 0 6px;
+  }
+  .gate-box p{color:var(--ivory-2); margin:0 0 22px; font-size:14px;}
+  .gate-box input{
+    background:transparent;
+    border:1px solid rgba(251,246,234,0.35);
+    color:var(--cream);
+    padding:12px 16px;
+    font-family:'Jost',sans-serif;
+    font-size:15px;
+    text-align:center;
+    letter-spacing:0.1em;
+    width:220px;
+  }
+  .gate-box button{
+    display:block;
+    margin:16px auto 0;
+    background:var(--gold);
+    border:none;
+    color:var(--ink);
+    padding:12px 30px;
+    font-family:'Jost',sans-serif;
+    font-size:12px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    cursor:pointer;
+  }
+  .gate-error{color:#e2a3a3; font-size:13px; margin-top:12px; font-family:'Jost',sans-serif; min-height:16px;}
+
+  /* ---------- LAYOUT ---------- */
+  #dashboard{display:none; max-width:1080px; margin:0 auto; padding:36px 20px 80px;}
+  #dashboard.show{display:block;}
+  header.top{
+    display:flex; justify-content:space-between; align-items:baseline;
+    margin-bottom:36px; flex-wrap:wrap; gap:12px;
+  }
+  header.top h1{
+    font-family:'Cormorant Garamond', serif;
+    font-weight:600; font-size:32px; margin:0; color:var(--forest);
+  }
+  .refresh-btn{
+    background:none; border:1px solid var(--gold); color:var(--gold);
+    padding:8px 16px; font-family:'Jost',sans-serif; font-size:12px;
+    letter-spacing:0.06em; text-transform:uppercase; cursor:pointer;
+  }
+  .refresh-btn:hover{background:var(--gold); color:var(--cream);}
+
+  /* stats */
+  .stats{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr));
+    gap:14px; margin-bottom:44px;
+  }
+  .stat-card{
+    background:var(--cream); border:1px solid var(--line);
+    padding:20px; text-align:center;
+  }
+  .stat-card b{
+    display:block; font-family:'Cormorant Garamond', serif;
+    font-size:34px; color:var(--forest); font-weight:600;
+  }
+
+  /* section heads */
+  h2.section-head{
+    font-family:'Cormorant Garamond', serif; font-weight:600;
+    font-size:24px; color:var(--forest); margin:0 0 16px;
+    border-bottom:1px solid var(--line); padding-bottom:10px;
+  }
+
+  /* seating chart */
+  .seating-grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr));
+    gap:14px; margin-bottom:48px;
+  }
+  .table-card{
+    background:var(--cream); border:1px solid var(--line); padding:16px;
+  }
+  .table-card .t-num{
+    font-family:'Cormorant Garamond', serif; font-size:20px; font-weight:600;
+    color:var(--gold); margin-bottom:8px;
+  }
+  .table-card ul{margin:0; padding-left:18px; font-size:14px;}
+  .unassigned-card{border-color:#c98a8a;}
+  .unassigned-card .t-num{color:#b0645f;}
+
+  /* guest table */
+  .search-row{margin-bottom:14px;}
+  .search-row input{
+    width:100%; max-width:320px;
+    padding:10px 14px; font-family:'EB Garamond',serif; font-size:15px;
+    border:1px solid var(--line); background:var(--cream);
+  }
+  table.guest-table{width:100%; border-collapse:collapse; font-family:'Jost',sans-serif; font-size:13.5px; background:var(--cream);}
+  table.guest-table th{
+    text-align:left; text-transform:uppercase; letter-spacing:0.06em; font-size:11px;
+    color:var(--gold); border-bottom:1px solid var(--line); padding:10px 8px;
+  }
+  table.guest-table td{padding:10px 8px; border-bottom:1px solid var(--line); vertical-align:middle;}
+  table.guest-table input[type=number]{
+    width:64px; border:1px solid var(--line); padding:6px 8px; font-family:'Jost',sans-serif;
+  }
+  table.guest-table button.save-row{
+    background:none; border:1px solid var(--gold); color:var(--gold);
+    font-size:11px; padding:6px 12px; text-transform:uppercase; letter-spacing:0.05em; cursor:pointer;
+  }
+  table.guest-table button.save-row:hover{background:var(--gold); color:var(--cream);}
+  .loading-note{font-family:'Jost',sans-serif; font-size:13px; color:#7a7268; padding:20px 0;}
+  .pill{
+    display:inline-block; padding:2px 9px; border-radius:20px; font-size:11px;
+    font-family:'Jost',sans-serif; letter-spacing:0.03em;
+  }
+  .pill.yes{background:#dfe6df; color:#3f5a41;}
+  .pill.no{background:#e9dede; color:#7a4b4b;}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gate-box">
+    <h1>Nancy &amp; Marc</h1>
+    <p>Couple's dashboard — enter passcode</p>
+    <input type="password" id="passcode-input" placeholder="Passcode" autocomplete="off">
+    <div class="gate-error" id="gate-error"></div>
+    <button id="gate-submit">Enter</button>
+  </div>
+</div>
+
+<div id="dashboard">
+  <header class="top">
+    <h1>Guest Dashboard</h1>
+    <button class="refresh-btn" id="refresh-btn">Refresh</button>
+  </header>
+
+  <div class="stats" id="stats">
+    <div class="stat-card"><b id="s-total">–</b><div class="label">Responses</div></div>
+    <div class="stat-card"><b id="s-attending">–</b><div class="label">Attending</div></div>
+    <div class="stat-card"><b id="s-guests">–</b><div class="label">Total Guests</div></div>
+    <div class="stat-card"><b id="s-declined">–</b><div class="label">Declined</div></div>
+    <div class="stat-card"><b id="s-seated">–</b><div class="label">Seated</div></div>
+    <div class="stat-card"><b id="s-unseated">–</b><div class="label">Unseated</div></div>
+  </div>
+
+  <h2 class="section-head">Seating Chart</h2>
+  <div class="seating-grid" id="seating-grid">
+    <div class="loading-note">Loading…</div>
+  </div>
+
+  <h2 class="section-head">Guest List</h2>
+  <div class="search-row">
+    <input type="text" id="search-input" placeholder="Search by name…">
+  </div>
+  <div id="table-wrap"><div class="loading-note">Loading…</div></div>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyCtiGIjE_avSstphgp7uo8XX2A4bPMHw3g",
+  authDomain: "nancy-marc-wedding.firebaseapp.com",
+  projectId: "nancy-marc-wedding",
+  storageBucket: "nancy-marc-wedding.firebasestorage.app",
+  messagingSenderId: "390527284227",
+  appId: "1:390527284227:web:51f20657d4e95c2be08a36"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const COLLECTION = 'wedding_data';
+const PASSCODE = 'MN2026';
+
+let allEntries = [];
+
+document.getElementById('gate-submit').addEventListener('click', tryEnter);
+document.getElementById('passcode-input').addEventListener('keydown', e=>{ if(e.key==='Enter') tryEnter(); });
+function tryEnter(){
+  const val = document.getElementById('passcode-input').value;
+  if(val === PASSCODE){
+    document.getElementById('gate').classList.add('hidden');
+    document.getElementById('dashboard').classList.add('show');
+    loadData();
+  } else {
+    document.getElementById('gate-error').textContent = 'Incorrect passcode.';
+  }
+}
+
+document.getElementById('refresh-btn').addEventListener('click', loadData);
+document.getElementById('search-input').addEventListener('input', renderTable);
+
+async function loadData(){
+  document.getElementById('table-wrap').innerHTML = '<div class="loading-note">Loading…</div>';
+  document.getElementById('seating-grid').innerHTML = '<div class="loading-note">Loading…</div>';
+  try{
+    const snap = await db.collection(COLLECTION).get();
+    allEntries = [];
+    snap.forEach(doc=>{
+      if(doc.id.startsWith('rsvp:')){
+        allEntries.push({ key: doc.id, data: doc.data() });
+      }
+    });
+    allEntries.sort((a,b)=> a.data.name.localeCompare(b.data.name));
+    renderStats();
+    renderSeating();
+    renderTable();
+  }catch(err){
+    document.getElementById('table-wrap').innerHTML = '<div class="loading-note">Could not load data — check your connection.</div>';
+    console.error(err);
+  }
+}
+
+function renderStats(){
+  const attending = allEntries.filter(e=>e.data.attending==='yes');
+  const declined = allEntries.filter(e=>e.data.attending==='no');
+  const plusOnes = attending.filter(e=>e.data.plusOne==='yes').length;
+  const seated = attending.filter(e=>e.data.tableNumber).length;
+  document.getElementById('s-total').textContent = allEntries.length;
+  document.getElementById('s-attending').textContent = attending.length;
+  document.getElementById('s-guests').textContent = attending.length + plusOnes;
+  document.getElementById('s-declined').textContent = declined.length;
+  document.getElementById('s-seated').textContent = seated;
+  document.getElementById('s-unseated').textContent = attending.length - seated;
+}
+
+function renderSeating(){
+  const grid = document.getElementById('seating-grid');
+  grid.innerHTML = '';
+  const attending = allEntries.filter(e=>e.data.attending==='yes');
+  const byTable = {};
+  const unassigned = [];
+  attending.forEach(({data})=>{
+    const names = [data.name].concat(data.plusOne==='yes' ? [data.plusOneName || 'Guest'] : []);
+    if(data.tableNumber){
+      byTable[data.tableNumber] = (byTable[data.tableNumber] || []).concat(names);
+    } else {
+      unassigned.push(...names);
+    }
+  });
+  const tableNums = Object.keys(byTable).sort((a,b)=>a-b);
+  if(tableNums.length === 0 && unassigned.length === 0){
+    grid.innerHTML = '<div class="loading-note">No attending guests yet.</div>';
+    return;
+  }
+  tableNums.forEach(num=>{
+    const card = document.createElement('div');
+    card.className = 'table-card';
+    card.innerHTML = `<div class="t-num">Table ${num}</div><ul>${byTable[num].map(n=>`<li>${n}</li>`).join('')}</ul>`;
+    grid.appendChild(card);
+  });
+  if(unassigned.length){
+    const card = document.createElement('div');
+    card.className = 'table-card unassigned-card';
+    card.innerHTML = `<div class="t-num">Unassigned</div><ul>${unassigned.map(n=>`<li>${n}</li>`).join('')}</ul>`;
+    grid.appendChild(card);
+  }
+}
+
+function renderTable(){
+  const wrap = document.getElementById('table-wrap');
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  const filtered = allEntries.filter(e=> e.data.name.toLowerCase().includes(q));
+  if(filtered.length === 0){
+    wrap.innerHTML = '<div class="loading-note">No matching guests.</div>';
+    return;
+  }
+  const tbl = document.createElement('table');
+  tbl.className = 'guest-table';
+  tbl.innerHTML = `<thead><tr>
+    <th>Name</th><th>Status</th><th>+1</th><th>Submitted</th><th>Table</th><th></th>
+  </tr></thead><tbody></tbody>`;
+  const tbody = tbl.querySelector('tbody');
+  filtered.forEach(({key, data})=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${data.name}</td>
+      <td><span class="pill ${data.attending==='yes' ? 'yes':'no'}">${data.attending==='yes' ? 'Attending':'Declined'}</span></td>
+      <td>${data.plusOne==='yes' ? (data.plusOneName || 'Yes') : '—'}</td>
+      <td>${data.submittedAt || '—'}</td>
+      <td><input type="number" min="1" value="${data.tableNumber || ''}" ${data.attending!=='yes' ? 'disabled':''}></td>
+      <td><button class="save-row" ${data.attending!=='yes' ? 'disabled':''}>Save</button></td>
+    `;
+    const input = tr.querySelector('input');
+    const btn = tr.querySelector('.save-row');
+    btn.addEventListener('click', async ()=>{
+      const val = parseInt(input.value, 10);
+      data.tableNumber = val || null;
+      btn.textContent = 'Saving…';
+      try{
+        await db.collection(COLLECTION).doc(key).set(data);
+        btn.textContent = 'Saved ✓';
+        renderStats();
+        renderSeating();
+        setTimeout(()=>{ btn.textContent = 'Save'; }, 1400);
+      }catch(err){
+        btn.textContent = 'Error';
+        console.error(err);
+      }
+    });
+    tbody.appendChild(tr);
+  });
+  wrap.innerHTML = '';
+  wrap.appendChild(tbl);
+}
+</script>
+</body>
+</html>
