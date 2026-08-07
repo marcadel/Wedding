@@ -247,8 +247,14 @@ async function loadData(){
     const snap = await db.collection(COLLECTION).get();
     allEntries = [];
     snap.forEach(doc=>{
-      if(doc.id.startsWith('rsvp:') && doc.data() && typeof doc.data().name === 'string'){
-        allEntries.push({ key: doc.id, data: doc.data() });
+      if(doc.id.startsWith('rsvp:')){
+        try{
+          const raw = doc.data();
+          const parsed = typeof raw.value === 'string' ? JSON.parse(raw.value) : raw;
+          if(parsed && typeof parsed.name === 'string'){
+            allEntries.push({ key: doc.id, data: parsed });
+          }
+        }catch(_){ /* skip malformed entry */ }
       }
     });
     allEntries.sort((a,b)=> a.data.name.localeCompare(b.data.name));
@@ -338,7 +344,9 @@ function renderTable(){
       data.tableNumber = val || null;
       btn.textContent = 'Saving…';
       try{
-        await db.collection(COLLECTION).doc(key).set(data);
+        await db.collection(COLLECTION).doc(key).set({
+          value: JSON.stringify(data), shared: true, updatedAt: Date.now()
+        });
         btn.textContent = 'Saved ✓';
         renderStats();
         renderSeating();
