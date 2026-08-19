@@ -164,6 +164,9 @@
     display:block; width:100%; font-family:'Jost',sans-serif; font-size:12px;
     border:1px solid var(--line); background:var(--cream); padding:5px 6px;
   }
+  .table-select:disabled{
+    background:#ece7dc; color:#a89f8f; cursor:not-allowed; border-color:#ddd5c4;
+  }
   table.guest-table button.delete-row{
     background:none; border:1px solid #c98a8a; color:#b0645f;
     font-size:13px; padding:6px 10px; cursor:pointer;
@@ -380,7 +383,7 @@ function renderTable(){
         <select class="side-select">${sideOptionsHTML}</select>
         <select class="category-select" style="margin-top:4px;"><option value="">—</option></select>
       </td>
-      <td><select class="table-select" ${data.attending!=='yes' ? 'disabled':''}></select></td>
+      <td><select class="table-select" ${(data.attending!=='yes' || !currentSide) ? 'disabled':''}></select></td>
       <td><button class="save-row" ${data.attending!=='yes' ? 'disabled':''}>Save</button></td>
       <td><button class="delete-row" title="Delete this RSVP">🗑</button></td>
     `;
@@ -405,6 +408,18 @@ function renderTable(){
         const opt = document.createElement('option');
         opt.value = current; opt.textContent = `${current} (outside current range)`; opt.selected = true;
         tableSelect.appendChild(opt);
+      }
+      // Table number stays locked until a relation (side) is chosen.
+      if(data.attending!=='yes'){
+        tableSelect.disabled = true;
+        tableSelect.title = 'Guest declined';
+      } else if(!sideSelect.value){
+        tableSelect.disabled = true;
+        tableSelect.value = '';
+        tableSelect.title = 'Choose a relation first';
+      } else {
+        tableSelect.disabled = false;
+        tableSelect.title = '';
       }
     }
     populateCategories(data.category || '');
