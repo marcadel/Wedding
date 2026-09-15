@@ -359,7 +359,7 @@
         <span class="radio-dot" style="top:0.339cqw; width:2.578cqw; height:2.587cqw;"></span>
       </label>
 
-      <input class="field" type="text" id="guestName" name="guestName"
+      <input class="field" type="text" id="guestName" name="guestName" hidden
              placeholder="Guest's name" aria-label="Guest name" autocomplete="off"
              style="left:27.439cqw; top:647.769cqw; width:44.970cqw; height:3.800cqw; font-size:2.4cqw;">
 
@@ -581,6 +581,19 @@ window.storage = {
   /* ---------------- RSVP form (same data shape + Firestore logic as the existing backend) ---------------- */
   const form = document.getElementById("rsvpForm");
   const submitBtn = document.getElementById("submitBtn");
+  const guestNameField = document.getElementById("guestName");
+
+  // Guest's name only makes sense — and only shows — when "Yes" is picked
+  // for the +1 question. Switching back to "No" hides and clears it, so a
+  // leftover typed name can never be saved against a "no guest" RSVP.
+  function updateGuestNameVisibility(){
+    const wantsGuest = (form.querySelector('input[name="plusOne"]:checked') || {}).value === 'yes';
+    guestNameField.hidden = !wantsGuest;
+    if(!wantsGuest) guestNameField.value = '';
+  }
+  form.querySelectorAll('input[name="plusOne"]').forEach(function(radio){
+    radio.addEventListener('change', updateGuestNameVisibility);
+  });
 
   async function safeGet(key){
     try{ return await window.storage.get(key, true); }
@@ -659,6 +672,7 @@ window.storage = {
     if(data.attending === 'yes'){
       const guestRadio = form.querySelector(`input[name="plusOne"][value="${data.plusOne === 'yes' ? 'yes' : 'no'}"]`);
       if(guestRadio) guestRadio.checked = true;
+      updateGuestNameVisibility();
       if(data.plusOneName) document.getElementById('guestName').value = data.plusOneName;
     }
     showConfirm(data);
@@ -673,6 +687,11 @@ window.storage = {
 
     if(!name){
       showToast('Please enter your full name.');
+      document.getElementById('fullName').focus();
+      return;
+    }
+    if(name.split(/\s+/).filter(Boolean).length < 2){
+      showToast('Please enter both your first and last name.');
       document.getElementById('fullName').focus();
       return;
     }
