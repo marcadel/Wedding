@@ -220,8 +220,18 @@
     display: inline-block; background: var(--lavender); color: var(--ink);
     text-decoration: none; font-size: 14px; padding: 9px 18px; border-radius: 999px;
     letter-spacing: 0.02em; transition: background 0.15s ease;
+    border: none; cursor: pointer; font-family: 'Orange Avenue', Georgia, serif;
   }
   .cal-pill:hover { background: var(--lavender-deep); }
+
+  /* on-page "Add to Calendar" links, styled like the underlined baked-in links */
+  .cal-link {
+    position: absolute; background: none; border: none; padding: 0; margin: 0;
+    font-family: 'Orange Avenue', Georgia, serif; color: var(--ink);
+    text-decoration: underline; cursor: pointer; text-align: center;
+    white-space: nowrap; opacity: 0.92;
+  }
+  .cal-link:hover { opacity: 1; }
   .confirm-qr { display: flex; flex-direction: column; align-items: center; gap: 8px; }
   .table-label { font-size: 14px; opacity: 0.85; max-width: 260px; }
   #qr-canvas-wrap { padding: 10px; background: #fff; border-radius: 10px; line-height: 0; }
@@ -291,10 +301,18 @@
        style="left:42.519cqw; top:514.750cqw; width:14.809cqw; height:4.266cqw;"
        aria-label="Watch the ceremony live on YouTube"></a>
 
+    <!-- Ceremony: Add to Calendar -->
+    <button type="button" class="cal-link" id="calChurchLink"
+            style="left:33cqw; top:519.5cqw; width:34cqw; font-size:2.4cqw;">+ Add to Calendar</button>
+
     <!-- Reception: Get directions (real GPS pin) -->
     <a class="hit" id="linkVenue" href="https://www.google.com/maps?q=30.1067689,31.3645509" target="_blank" rel="noopener"
        style="left:39.593cqw; top:566.921cqw; width:20.950cqw; height:4.512cqw;"
        aria-label="Get directions to Hilton Cairo Heliopolis"></a>
+
+    <!-- Reception: Add to Calendar -->
+    <button type="button" class="cal-link" id="calReceptionLink"
+            style="left:33cqw; top:571.2cqw; width:34cqw; font-size:2.4cqw;">+ Add to Calendar</button>
 
     <!-- Live countdown, styled to match the flip-tile artwork it replaces -->
     <div class="countdown" id="countdown" style="left:19.805cqw; top:417.697cqw; width:61.154cqw;" aria-live="off">
@@ -427,13 +445,51 @@ window.storage = {
   function fmtICSDate(d){
     return d.toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';
   }
-  function buildGoogleCalLink({title, details, location, start, end}){
-    const params = new URLSearchParams({
-      action:'TEMPLATE', text:title,
-      dates:`${fmtICSDate(start)}/${fmtICSDate(end)}`,
-      details:details, location:location
-    });
-    return `https://calendar.google.com/calendar/render?${params.toString()}`;
+
+  // .ics generation replaces the old Google-Calendar-only link: a calendar
+  // "TEMPLATE" URL has no way to attach a reminder, and .ics works the same
+  // way across Google Calendar, Apple Calendar and Outlook via one file.
+  function icsEscape(text){
+    return String(text).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
+  }
+  function buildICS({title, details, location, start, end, reminderMinutes}){
+    const uid = Date.now() + '-' + Math.random().toString(36).slice(2) + '@nancy-marc-wedding';
+    const lines = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Nancy & Marc Wedding//EN',
+      'CALSCALE:GREGORIAN',
+      'BEGIN:VEVENT',
+      'UID:' + uid,
+      'DTSTAMP:' + fmtICSDate(new Date()),
+      'DTSTART:' + fmtICSDate(start),
+      'DTEND:' + fmtICSDate(end),
+      'SUMMARY:' + icsEscape(title),
+      'DESCRIPTION:' + icsEscape(details),
+      'LOCATION:' + icsEscape(location)
+    ];
+    if(reminderMinutes){
+      lines.push(
+        'BEGIN:VALARM',
+        'ACTION:DISPLAY',
+        'DESCRIPTION:Reminder',
+        'TRIGGER:-PT' + reminderMinutes + 'M',
+        'END:VALARM'
+      );
+    }
+    lines.push('END:VEVENT', 'END:VCALENDAR');
+    return lines.join('\r\n');
+  }
+  function downloadICS(filename, cal){
+    const blob = new Blob([buildICS(cal)], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
   // Cairo is UTC+2 year-round (no DST) — times below given in UTC directly. Unchanged from the backend.
@@ -443,18 +499,25 @@ window.storage = {
   const recStart    = new Date(Date.UTC(YEAR,9,24,15,30)); // 17:30 Cairo
   const recEnd      = new Date(Date.UTC(YEAR,9,24,20,30)); // 22:30 Cairo
 
+  const LIVESTREAM_URL = "https://www.youtube.com/watch?v=KPPSCLWU6KE";
+
   const churchCal = {
     title:"Nancy & Marc's Wedding Ceremony",
-    details:"Ceremony at St. Mark Coptic Orthodox Church, Cleopatra, Heliopolis.",
+    details:"Ceremony at St. Mark Coptic Orthodox Church, Cleopatra, Heliopolis.\nCan't join in person? Watch live: " + LIVESTREAM_URL,
     location:"St. Mark Coptic Orthodox Church, Cleopatra, Heliopolis, Cairo",
-    start:churchStart, end:churchEnd
+    start:churchStart, end:churchEnd,
+    reminderMinutes: 15
   };
   const receptionCal = {
     title:"Nancy & Marc's Wedding Reception",
     details:"Reception at The Garden, located inside Hilton Cairo Heliopolis.",
     location:"The Garden at Hilton Cairo Heliopolis, Cairo",
-    start:recStart, end:recEnd
+    start:recStart, end:recEnd,
+    reminderMinutes: 15
   };
+
+  document.getElementById('calChurchLink').addEventListener('click', () => downloadICS('ceremony.ics', churchCal));
+  document.getElementById('calReceptionLink').addEventListener('click', () => downloadICS('reception.ics', receptionCal));
 
   /* ---------------- live countdown (target unchanged: ceremony start) ---------------- */
   const TARGET = churchStart.getTime();
@@ -563,9 +626,11 @@ window.storage = {
     calWrap.innerHTML = '';
     if(data.attending === 'yes'){
       calWrap.innerHTML = `
-        <a class="cal-pill" target="_blank" rel="noopener" href="${buildGoogleCalLink(churchCal)}">+ Ceremony</a>
-        <a class="cal-pill" target="_blank" rel="noopener" href="${buildGoogleCalLink(receptionCal)}">+ Reception</a>
+        <button type="button" class="cal-pill" id="confirmCalChurch">+ Ceremony</button>
+        <button type="button" class="cal-pill" id="confirmCalReception">+ Reception</button>
       `;
+      document.getElementById('confirmCalChurch').addEventListener('click', () => downloadICS('ceremony.ics', churchCal));
+      document.getElementById('confirmCalReception').addEventListener('click', () => downloadICS('reception.ics', receptionCal));
     }
     renderQR('qrBox', data);
     confirmBackdrop.classList.add('show');
