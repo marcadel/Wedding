@@ -442,6 +442,16 @@ window.storage = {
   function slugify(name){
     return name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
   }
+  // Enforce "Mark Adel Ragheb"-style capitalization on names: first letter
+  // of each word (and each hyphen/apostrophe-separated chunk within it)
+  // uppercase, the rest lowercase — regardless of how the guest typed it.
+  function toTitleCase(str){
+    return str.trim().replace(/\s+/g,' ').split(' ').map(function(word){
+      return word.replace(/[A-Za-z]+/g, function(chunk){
+        return chunk.charAt(0).toUpperCase() + chunk.slice(1).toLowerCase();
+      });
+    }).join(' ');
+  }
   function fmtICSDate(d){
     return d.toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';
   }
@@ -582,6 +592,16 @@ window.storage = {
   const form = document.getElementById("rsvpForm");
   const submitBtn = document.getElementById("submitBtn");
   const guestNameField = document.getElementById("guestName");
+  const fullNameField = document.getElementById("fullName");
+
+  // Auto-capitalize names as the guest fills the form in (not just at
+  // submit time), so what they see matches what gets saved.
+  fullNameField.addEventListener('blur', function(){
+    if(this.value.trim()) this.value = toTitleCase(this.value);
+  });
+  guestNameField.addEventListener('blur', function(){
+    if(this.value.trim()) this.value = toTitleCase(this.value);
+  });
 
   // Guest's name only makes sense — and only shows — when "Yes" is picked
   // for the +1 question. Switching back to "No" hides and clears it, so a
@@ -617,11 +637,6 @@ window.storage = {
       lbl.className = 'table-label';
       lbl.textContent = `Table ${data.tableNumber}`;
       box.appendChild(lbl);
-    } else {
-      const lbl = document.createElement('div');
-      lbl.className = 'table-label';
-      lbl.textContent = 'Your table number will appear here once seating is finalized — just revisit this page.';
-      box.appendChild(lbl);
     }
   }
 
@@ -630,15 +645,20 @@ window.storage = {
     confirmBackdrop.classList.remove('show');
   });
 
-  function showConfirm(data){
+  function showConfirm(data, isUpdate){
     document.getElementById('confirmName').textContent = ', ' + data.name.split(' ')[0];
+    let msg;
     if(data.attending === 'yes'){
-      document.getElementById('confirmMsg').textContent = data.plusOne === 'yes'
+      msg = data.plusOne === 'yes'
         ? `We can't wait to celebrate with you and ${data.plusOneName || 'your guest'}.`
         : `We can't wait to celebrate with you.`;
     } else {
-      document.getElementById('confirmMsg').textContent = `You'll be missed — thank you for letting us know.`;
+      msg = `You'll be missed — thank you for letting us know.`;
     }
+    if(isUpdate){
+      msg = `We've updated your RSVP. ` + msg;
+    }
+    document.getElementById('confirmMsg').textContent = msg;
     const calWrap = document.getElementById('confirmCal');
     calWrap.innerHTML = '';
     if(data.attending === 'yes'){
@@ -680,10 +700,12 @@ window.storage = {
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const name = document.getElementById('fullName').value.trim();
+    const name = toTitleCase(document.getElementById('fullName').value.trim());
+    document.getElementById('fullName').value = name;
     const attendingChoice = (form.querySelector('input[name="attending"]:checked') || {}).value;
     const plusOneChoice = (form.querySelector('input[name="plusOne"]:checked') || {}).value || 'no';
-    const guestName = document.getElementById('guestName').value.trim();
+    const guestName = toTitleCase(document.getElementById('guestName').value.trim());
+    document.getElementById('guestName').value = guestName;
 
     if(!name){
       showToast('Please enter your full name.');
@@ -706,21 +728,22 @@ window.storage = {
       return;
     }
 
+    // The storage key is derived from a lower-cased, punctuation-stripped
+    // slug of the name, so "Mark Adel", "mark adel" and "MARK   Adel" all
+    // resolve to the exact same document — there is no separate duplicate
+    // to create. We just need to look up that same document and either
+    // (a) tell the person nicely that they're already on the list when
+    // nothing changed, or (b) update their existing entry in place when
+    // something did (e.g. they flipped from "no" to "yes", or added a +1).
     const key = 'rsvp:' + slugify(name);
 
     submitBtn.disabled = true;
     let existing = null;
     try { existing = await safeGet(key); } catch(_) {}
 
+    let prevData = null;
     if(existing){
-      const proceed = window.confirm(
-        `It looks like ${name} already RSVP'd. Submitting again will update that existing response. Continue?`
-      );
-      if(!proceed){
-        submitBtn.disabled = false;
-        showToast('RSVP not changed.');
-        return;
-      }
+      try { prevData = JSON.parse(existing.value); } catch(_) {}
     }
 
     const data = {
@@ -728,19 +751,28 @@ window.storage = {
       attending: isAttending ? 'yes' : 'no',
       plusOne: isAttending ? plusOneChoice : 'no',
       plusOneName: (isAttending && plusOneChoice === 'yes') ? guestName : '',
-      tableNumber: null,
+      tableNumber: prevData ? (prevData.tableNumber || null) : null,
       submittedAt: new Date().toLocaleString('en-GB', { timeZone:'Africa/Cairo', dateStyle:'medium', timeStyle:'medium' }) + ' (Cairo)',
       submittedAtMs: Date.now()
     };
 
-    try {
-      if(existing){
-        try { const prev = JSON.parse(existing.value); data.tableNumber = prev.tableNumber || null; } catch(_) {}
+    if(prevData){
+      const unchanged =
+        prevData.attending === data.attending &&
+        prevData.plusOne === data.plusOne &&
+        (prevData.plusOneName || '') === (data.plusOneName || '');
+      if(unchanged){
+        submitBtn.disabled = false;
+        showToast(`Looks like we already have you on the list, ${name.split(' ')[0]} — no changes needed!`);
+        return;
       }
+    }
+
+    try {
       const result = await window.storage.set(key, JSON.stringify(data), true);
       if(!result){ throw new Error('save failed'); }
       try { localStorage.setItem(REMEMBER_KEY, key); } catch(e) {}
-      showConfirm(data);
+      showConfirm(data, !!prevData);
     } catch(err) {
       console.error(err);
       const detail = (err && (err.code || err.message)) || 'unknown error';
