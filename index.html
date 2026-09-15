@@ -287,9 +287,9 @@
        aria-label="Get directions to St. Mark Coptic Orthodox Church"></a>
 
     <!-- Ceremony: Watch live -->
-    <a class="hit" id="linkWatch" href="javascript:void(0)" rel="noopener"
+    <a class="hit" id="linkWatch" href="https://www.youtube.com/watch?v=KPPSCLWU6KE" target="_blank" rel="noopener"
        style="left:42.519cqw; top:514.750cqw; width:14.809cqw; height:4.266cqw;"
-       aria-label="Watch the ceremony live"></a>
+       aria-label="Watch the ceremony live on YouTube"></a>
 
     <!-- Reception: Get directions (real GPS pin) -->
     <a class="hit" id="linkVenue" href="https://www.google.com/maps?q=30.1067689,31.3645509" target="_blank" rel="noopener"
@@ -500,14 +500,6 @@ window.storage = {
   }
   tickCountdown();
   setInterval(tickCountdown, 1000);
-
-  /* ---------------- placeholder "watch live" link ---------------- */
-  const watchLink = document.getElementById("linkWatch");
-  if (watchLink) {
-    watchLink.addEventListener("click", function () {
-      showToast("The live-stream link will go here closer to the day.");
-    });
-  }
 
   /* ---------------- toast ---------------- */
   const toast = document.getElementById("toast");
