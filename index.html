@@ -130,19 +130,22 @@
     justify-content: space-between;
     align-items: flex-start;
   }
-  .cd-group { display: flex; flex-direction: column; align-items: center; gap: 1.5cqw; flex: 1 1 0; }
+  .cd-group { display: flex; flex-direction: column; align-items: center; gap: 2cqw; flex: 1 1 0; }
   .cd-tiles { display: flex; gap: 0.7cqw; }
   .cd-tile {
     position: relative;
     width: 7.2cqw; height: 9.6cqw;
-    background: linear-gradient(180deg, var(--tile-black-2) 0%, var(--tile-black) 55%, #000 100%);
+    background: linear-gradient(180deg, rgba(43,38,48,0.32) 0%, rgba(20,17,21,0.42) 55%, rgba(0,0,0,0.48) 100%);
+    -webkit-backdrop-filter: blur(3px) saturate(115%);
+    backdrop-filter: blur(3px) saturate(115%);
+    border: 1px solid rgba(253,242,240,0.28);
     border-radius: 0.9cqw;
-    box-shadow: 0 0.6cqw 1.4cqw rgba(0,0,0,0.35);
+    box-shadow: 0 0.6cqw 1.4cqw rgba(45,20,55,0.22);
     overflow: hidden;
   }
   .cd-tile::after {
     content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px;
-    background: rgba(0,0,0,0.55);
+    background: rgba(253,242,240,0.35);
   }
   .cd-tile span {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -294,7 +297,7 @@
        aria-label="Get directions to Hilton Cairo Heliopolis"></a>
 
     <!-- Live countdown, styled to match the flip-tile artwork it replaces -->
-    <div class="countdown" id="countdown" style="left:19.805cqw; top:419.890cqw; width:61.154cqw;" aria-live="off">
+    <div class="countdown" id="countdown" style="left:19.805cqw; top:417.697cqw; width:61.154cqw;" aria-live="off">
       <div class="cd-group">
         <div class="cd-tiles"><div class="cd-tile" data-slot="d0"><span>0</span></div><div class="cd-tile" data-slot="d1"><span>0</span></div></div>
         <div class="cd-label">Days</div>
