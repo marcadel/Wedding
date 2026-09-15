@@ -492,12 +492,16 @@ window.storage = {
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
-  // Cairo is UTC+2 year-round (no DST) — times below given in UTC directly. Unchanged from the backend.
+  // Egypt reinstated DST in 2023 (clocks forward late April, back late October),
+  // and Oct 24 2026 falls inside that window — Cairo is UTC+3 (EEST) on the
+  // wedding date, not the UTC+2 (EET) it uses the rest of the year. Times
+  // below are given in UTC directly, pre-converted from the intended Cairo
+  // wall-clock times using that +3 offset.
   const YEAR = 2026;
-  const churchStart = new Date(Date.UTC(YEAR,9,24,13,30)); // 15:30 Cairo
-  const churchEnd   = new Date(Date.UTC(YEAR,9,24,15,30));
-  const recStart    = new Date(Date.UTC(YEAR,9,24,15,30)); // 17:30 Cairo
-  const recEnd      = new Date(Date.UTC(YEAR,9,24,20,30)); // 22:30 Cairo
+  const churchStart = new Date(Date.UTC(YEAR,9,24,13,0));  // 16:00 Cairo (4:00 PM)
+  const churchEnd   = new Date(Date.UTC(YEAR,9,24,14,0));  // 17:00 Cairo (5:00 PM)
+  const recStart    = new Date(Date.UTC(YEAR,9,24,14,30)); // 17:30 Cairo (5:30 PM)
+  const recEnd      = new Date(Date.UTC(YEAR,9,24,19,30)); // 22:30 Cairo (10:30 PM)
 
   const LIVESTREAM_URL = "https://www.youtube.com/watch?v=KPPSCLWU6KE";
 
