@@ -743,7 +743,8 @@ window.storage = {
       showConfirm(data);
     } catch(err) {
       console.error(err);
-      showToast("Couldn't send — please try again.");
+      const detail = (err && (err.code || err.message)) || 'unknown error';
+      showToast("Couldn't send (" + detail + ") — please try again.");
     } finally {
       submitBtn.disabled = false;
     }
