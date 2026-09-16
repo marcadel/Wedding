@@ -136,23 +136,23 @@
   .cd-tile {
     position: relative;
     width: 7.2cqw; height: 9.6cqw;
-    background: linear-gradient(180deg, rgba(43,38,48,0.32) 0%, rgba(20,17,21,0.42) 55%, rgba(0,0,0,0.48) 100%);
+    background: linear-gradient(180deg, rgba(122,92,158,0.92) 0%, rgba(90,45,113,0.94) 55%, rgba(69,26,89,0.96) 100%);
     -webkit-backdrop-filter: blur(3px) saturate(115%);
     backdrop-filter: blur(3px) saturate(115%);
-    border: 1px solid rgba(253,242,240,0.28);
+    border: 1px solid rgba(253,242,240,0.35);
     border-radius: 0.9cqw;
-    box-shadow: 0 0.6cqw 1.4cqw rgba(45,20,55,0.22);
+    box-shadow: 0 0.6cqw 1.4cqw rgba(45,20,55,0.28);
     overflow: hidden;
   }
   .cd-tile::after {
     content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px;
-    background: rgba(253,242,240,0.35);
+    background: rgba(253,242,240,0.4);
   }
   .cd-tile span {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     font-family: 'Orange Avenue', Georgia, serif;
     font-variant-numeric: tabular-nums;
-    font-size: 6.4cqw; color: var(--lavender);
+    font-size: 6.4cqw; color: #FFFFFF;
     transition: opacity 0.18s ease;
   }
   .cd-tile.flip span { animation: cdflip 0.5s ease; }
