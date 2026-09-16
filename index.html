@@ -415,6 +415,12 @@
 <canvas id="dust" aria-hidden="true"></canvas>
 <script>
   (function(){
+    // Always start a fresh visit (including a refresh mid-scroll) at the very
+    // top of the invitation, rather than wherever the browser last had the
+    // page scrolled to.
+    if('scrollRestoration' in history){ history.scrollRestoration = 'manual'; }
+    window.scrollTo(0, 0);
+
     var seal = document.getElementById('seal');
     var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
     if(!seal){ document.body.classList.remove('entrance-lock'); return; }
@@ -422,6 +428,7 @@
     function open(){
       if(opened) return;
       opened = true;
+      window.scrollTo(0, 0);
       seal.classList.add('go');
       document.body.classList.remove('entrance-lock');
       document.body.classList.add('invite-opened');
