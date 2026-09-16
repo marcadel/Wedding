@@ -484,7 +484,7 @@
     <img class="bg" src="images/section_04.webp?v=2" alt="Countdown to the wedding" width="2358" height="1670">
     <img class="bg" src="images/section_05.webp?v=2" alt="Ceremony at St. Mark Coptic Orthodox Church, please arrive by 3:30 PM" width="2358" height="2134">
     <img class="bg" src="images/section_06.webp?v=2" alt="Reception at Hilton Cairo Heliopolis, The Garden, doors open at 5:30 PM" width="2358" height="1198">
-    <img class="bg" src="images/section_07.webp" alt="RSVP form" width="2358" height="2398">
+    <img class="bg" src="images/section_07.webp?v=2" alt="RSVP form" width="2358" height="2398">
     <img class="bg" src="images/section_08.webp" alt="A few friendly notes" width="2358" height="1406">
     <img class="bg" src="images/section_09.webp" alt="A little note about little ones, church parking, and greetings and photos" width="2358" height="1994">
     <img class="bg" src="images/section_10.webp" alt="" role="presentation" width="2358" height="742">
@@ -537,7 +537,7 @@
     <!-- RSVP form -->
     <form id="rsvpForm" autocomplete="on">
       <input class="field" type="text" id="fullName" name="fullName" required
-             placeholder="Jane Doe" aria-label="Full name" autocomplete="name"
+             aria-label="Full name" autocomplete="name"
              style="left:27.439cqw; top:595.225cqw; width:44.970cqw; height:3.800cqw; font-size:2.4cqw;">
 
       <label class="radio-hit" style="left:27.583cqw; top:608.846cqw; width:7.829cqw; height:3.766cqw;">
@@ -923,6 +923,11 @@ window.storage = {
     const isAttending = attendingChoice === 'yes';
     if(isAttending && plusOneChoice === 'yes' && !guestName){
       showToast("Please enter your guest's name.");
+      document.getElementById('guestName').focus();
+      return;
+    }
+    if(isAttending && plusOneChoice === 'yes' && guestName.split(/\s+/).filter(Boolean).length < 2){
+      showToast("Please enter your guest's first and last name.");
       document.getElementById('guestName').focus();
       return;
     }
