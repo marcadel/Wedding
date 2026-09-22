@@ -398,12 +398,12 @@
 </div>
 <canvas id="dust" aria-hidden="true"></canvas>
 
-<!-- Background music: a hidden YouTube player streams the song (nothing is
-     downloaded/rehosted — this just uses YouTube's own embed player), muted
-     to a 0x0 iframe. It starts the moment the guest taps the seal to open
-     the invitation, since that tap is the page's first user interaction and
-     browsers won't allow audio to autoplay with sound before that. -->
-<div id="bgm-yt" aria-hidden="true"></div>
+<!-- Background music: a real audio file, so it reliably starts on every
+     device (including iPhone Safari) the moment the guest taps the seal to
+     open the invitation — that tap is the page's first user interaction,
+     which is what browsers require before audio can play. Loops after it
+     ends for as long as the guest stays on the page. -->
+<audio id="bgmAudio" src="audio/background.mp3" loop preload="auto"></audio>
 <button type="button" class="music-toggle" id="musicToggle" aria-label="Mute background music" aria-pressed="false">
   <svg class="icon-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
   <svg class="icon-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
@@ -411,39 +411,16 @@
 
 <script>
   (function(){
-    // ---------------- Background music (hidden YouTube player) ----------------
-    // "A Thousand Years" (Piano & Cello Cover) — The Piano Guys.
-    var BGM_VIDEO_ID = 'QgaTQ5-XfMM';
-    var ytPlayer = null, ytReady = false, wantsPlay = false, isMuted = false;
-
-    function loadYouTubeAPI(){
-      if(window.YT && window.YT.Player){ onYouTubeIframeAPIReady(); return; }
-      var tag = document.createElement('script');
-      tag.src = 'https://www.youtube.com/iframe_api';
-      document.head.appendChild(tag);
-    }
-    window.onYouTubeIframeAPIReady = function(){
-      ytPlayer = new YT.Player('bgm-yt', {
-        height: '0', width: '0',
-        videoId: BGM_VIDEO_ID,
-        playerVars: {
-          autoplay: 0, controls: 0, disablekb: 1, fs: 0,
-          loop: 1, playlist: BGM_VIDEO_ID,
-          playsinline: 1, modestbranding: 1, rel: 0
-        },
-        events: {
-          onReady: function(){
-            ytReady = true;
-            if(wantsPlay){ try{ ytPlayer.playVideo(); }catch(e){} }
-          }
-        }
-      });
-    };
-    loadYouTubeAPI();
+    // ---------------- Background music ----------------
+    var bgmAudio = document.getElementById('bgmAudio');
+    var isMuted = false;
 
     function startBgMusic(){
-      wantsPlay = true;
-      if(ytReady && ytPlayer){ try{ ytPlayer.playVideo(); }catch(e){} }
+      if(!bgmAudio) return;
+      var p = bgmAudio.play();
+      // If the browser blocked it for some reason, the guest can still start
+      // it themselves with the mute/play button below.
+      if(p && typeof p.catch === 'function'){ p.catch(function(){}); }
     }
 
     var musicBtn = document.getElementById('musicToggle');
@@ -454,11 +431,16 @@
       musicBtn.setAttribute('aria-label', isMuted ? 'Unmute background music' : 'Mute background music');
       musicBtn.setAttribute('aria-pressed', isMuted ? 'true' : 'false');
     }
-    if(musicBtn){
+    if(musicBtn && bgmAudio){
       musicBtn.addEventListener('click', function(){
-        if(!ytPlayer) return;
-        if(isMuted){ ytPlayer.unMute(); isMuted = false; }
-        else { ytPlayer.mute(); isMuted = true; }
+        if(bgmAudio.paused){
+          isMuted = false;
+          bgmAudio.muted = false;
+          startBgMusic();
+        } else {
+          isMuted = !isMuted;
+          bgmAudio.muted = isMuted;
+        }
         updateMusicIcon();
       });
     }
