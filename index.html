@@ -100,23 +100,6 @@
   .field::placeholder { color: rgba(86, 34, 107, 0.32); }
   .field:focus { outline: none; background: rgba(203, 188, 219, 0.18); border-radius: 2cqw; }
 
-  /* a field with no matching baked-in box in the artwork draws its own */
-  .field-boxed {
-    border: 1.5px solid rgba(86, 34, 107, 0.5);
-    border-radius: 1.8cqw;
-    background: rgba(255, 253, 250, 0.4);
-  }
-  .field-boxed:focus { background: rgba(203, 188, 219, 0.28); }
-
-  .drawn-label {
-    position: absolute;
-    font-family: 'Orange Avenue', Georgia, serif;
-    color: var(--ink);
-    opacity: 0.85;
-    font-size: 2.2cqw;
-    line-height: 1.2;
-  }
-
   /* radio hit areas */
   .radio-hit { position: absolute; display: block; }
   .radio-hit input {
@@ -548,13 +531,9 @@
               style="left:27.566cqw; top:697.837cqw; width:45.377cqw; height:6.149cqw;"></button>
     </form>
 
-    <!-- Song requests: guests must RSVP (by name) before a request is accepted -->
+    <!-- Song requests: guests must RSVP first (checked against the Full Name
+         entered above) before a request is accepted -->
     <form id="songForm" autocomplete="off">
-      <div class="drawn-label" style="left:27.990cqw; top:745.759cqw; width:30cqw;">Your Name</div>
-      <input class="field field-boxed" type="text" id="songGuestName" name="songGuestName" required
-             aria-label="Your name" autocomplete="name"
-             style="left:28.159cqw; top:748.728cqw; width:44.487cqw; height:3.265cqw; font-size:2.2cqw;">
-
       <input class="field" type="text" id="songName" name="songName" required
              aria-label="Song name"
              style="left:27.735cqw; top:757.252cqw; width:45.335cqw; height:4.665cqw; font-size:2.4cqw;">
@@ -967,22 +946,22 @@ window.storage = {
 
   /* ---------------- Song requests ----------------
      Requests are stored in the same collection as RSVPs (the one Firestore
-     rules already allow this site to write to), keyed off the guest's own
-     RSVP so a song can only be sent by someone who has already RSVP'd under
-     that exact name. */
+     rules already allow this site to write to). There's no separate name
+     field here on purpose — a song can only be sent once the name typed
+     into the RSVP form above has an actual RSVP saved for it, so guests
+     have to fill in and submit the RSVP first. */
   const songForm = document.getElementById('songForm');
   const songSubmitBtn = document.getElementById('songSubmitBtn');
 
   songForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const guestName = toTitleCase(document.getElementById('songGuestName').value.trim());
-    document.getElementById('songGuestName').value = guestName;
+    const guestName = toTitleCase(fullNameField.value.trim());
     const songName = document.getElementById('songName').value.trim();
     const songArtist = document.getElementById('songArtist').value.trim();
 
     if(!guestName){
-      showToast('Please enter your name so we know who it\'s from.');
-      document.getElementById('songGuestName').focus();
+      showToast('Please fill in your name in the RSVP form above and submit it first.');
+      fullNameField.focus();
       return;
     }
     if(!songName){
@@ -993,15 +972,15 @@ window.storage = {
 
     songSubmitBtn.disabled = true;
 
-    // Confirm this name has already submitted an RSVP before accepting a
-    // song request from it.
+    // Confirm the name in the RSVP form above has already been submitted
+    // (i.e. actually saved) before accepting a song request from it.
     const rsvpKey = 'rsvp:' + slugify(guestName);
     let rsvpRecord = null;
     try { rsvpRecord = await safeGet(rsvpKey); } catch(_) {}
 
     if(!rsvpRecord){
       songSubmitBtn.disabled = false;
-      showToast(`We can't find an RSVP for ${guestName.split(' ')[0]} yet — please submit your RSVP above first, using the same name.`);
+      showToast(`We can't find an RSVP for ${guestName.split(' ')[0]} yet — please submit your RSVP above first.`);
       return;
     }
 
