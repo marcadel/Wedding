@@ -100,6 +100,23 @@
   .field::placeholder { color: rgba(86, 34, 107, 0.32); }
   .field:focus { outline: none; background: rgba(203, 188, 219, 0.18); border-radius: 2cqw; }
 
+  /* a field with no matching baked-in box in the artwork draws its own */
+  .field-boxed {
+    border: 1.5px solid rgba(86, 34, 107, 0.5);
+    border-radius: 1.8cqw;
+    background: rgba(255, 253, 250, 0.4);
+  }
+  .field-boxed:focus { background: rgba(203, 188, 219, 0.28); }
+
+  .drawn-label {
+    position: absolute;
+    font-family: 'Orange Avenue', Georgia, serif;
+    color: var(--ink);
+    opacity: 0.85;
+    font-size: 2.2cqw;
+    line-height: 1.2;
+  }
+
   /* radio hit areas */
   .radio-hit { position: absolute; display: block; }
   .radio-hit input {
@@ -528,11 +545,16 @@
              style="left:27.396cqw; top:681.128cqw; width:45.674cqw; height:4.495cqw; font-size:2.4cqw;">
 
       <button class="submit-hit" type="submit" id="submitBtn" aria-label="Submit RSVP"
-              style="left:27.226cqw; top:707.337cqw; width:46.141cqw; height:3.393cqw;"></button>
+              style="left:27.566cqw; top:697.837cqw; width:45.377cqw; height:6.149cqw;"></button>
     </form>
 
-    <!-- Song requests -->
+    <!-- Song requests: guests must RSVP (by name) before a request is accepted -->
     <form id="songForm" autocomplete="off">
+      <div class="drawn-label" style="left:27.990cqw; top:745.759cqw; width:30cqw;">Your Name</div>
+      <input class="field field-boxed" type="text" id="songGuestName" name="songGuestName" required
+             aria-label="Your name" autocomplete="name"
+             style="left:28.159cqw; top:748.728cqw; width:44.487cqw; height:3.265cqw; font-size:2.2cqw;">
+
       <input class="field" type="text" id="songName" name="songName" required
              aria-label="Song name"
              style="left:27.735cqw; top:757.252cqw; width:45.335cqw; height:4.665cqw; font-size:2.4cqw;">
@@ -943,35 +965,61 @@ window.storage = {
     }
   });
 
-  /* ---------------- Song requests ---------------- */
-  const SONG_COLLECTION = 'song_requests';
+  /* ---------------- Song requests ----------------
+     Requests are stored in the same collection as RSVPs (the one Firestore
+     rules already allow this site to write to), keyed off the guest's own
+     RSVP so a song can only be sent by someone who has already RSVP'd under
+     that exact name. */
   const songForm = document.getElementById('songForm');
   const songSubmitBtn = document.getElementById('songSubmitBtn');
 
   songForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const guestName = toTitleCase(document.getElementById('songGuestName').value.trim());
+    document.getElementById('songGuestName').value = guestName;
     const songName = document.getElementById('songName').value.trim();
     const songArtist = document.getElementById('songArtist').value.trim();
 
+    if(!guestName){
+      showToast('Please enter your name so we know who it\'s from.');
+      document.getElementById('songGuestName').focus();
+      return;
+    }
     if(!songName){
       showToast('Please enter a song name.');
       document.getElementById('songName').focus();
       return;
     }
 
-    const key = 'song:' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    songSubmitBtn.disabled = true;
+
+    // Confirm this name has already submitted an RSVP before accepting a
+    // song request from it.
+    const rsvpKey = 'rsvp:' + slugify(guestName);
+    let rsvpRecord = null;
+    try { rsvpRecord = await safeGet(rsvpKey); } catch(_) {}
+
+    if(!rsvpRecord){
+      songSubmitBtn.disabled = false;
+      showToast(`We can't find an RSVP for ${guestName.split(' ')[0]} yet — please submit your RSVP above first, using the same name.`);
+      return;
+    }
+
+    const key = 'song:' + slugify(guestName) + '-' + Date.now();
     const data = {
+      guestName,
       songName,
       artist: songArtist,
       submittedAt: new Date().toLocaleString('en-GB', { timeZone:'Africa/Cairo', dateStyle:'medium', timeStyle:'medium' }) + ' (Cairo)',
       submittedAtMs: Date.now()
     };
 
-    songSubmitBtn.disabled = true;
     try {
-      await db.collection(SONG_COLLECTION).doc(key).set(data);
-      showToast("Thanks! We'll try to play it.");
-      songForm.reset();
+      const result = await window.storage.set(key, JSON.stringify(data), true);
+      if(!result){ throw new Error('save failed'); }
+      showToast(`Thanks, ${guestName.split(' ')[0]} — we'll try to play it!`);
+      document.getElementById('songName').value = '';
+      document.getElementById('songArtist').value = '';
     } catch(err) {
       console.error(err);
       const detail = (err && (err.code || err.message)) || 'unknown error';
