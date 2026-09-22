@@ -309,7 +309,12 @@ const COLLECTION = 'wedding_data';
 const PASSCODE = 'MN2026';
 
 let allEntries = [];
+let songsByGuest = {};
 let sortState = { key: 'name', dir: 1 };
+
+function slugify(name){
+  return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+}
 
 // ---- small inline icon set (stroke-based, currentColor, no external deps) ----
 const ICONS = {
@@ -359,6 +364,7 @@ async function loadData(){
   try{
     const snap = await db.collection(COLLECTION).get();
     allEntries = [];
+    songsByGuest = {};
     snap.forEach(doc=>{
       if(doc.id.startsWith('rsvp:')){
         try{
@@ -366,6 +372,16 @@ async function loadData(){
           const parsed = typeof raw.value === 'string' ? JSON.parse(raw.value) : raw;
           if(parsed && typeof parsed.name === 'string'){
             allEntries.push({ key: doc.id, data: parsed });
+          }
+        }catch(_){ /* skip malformed entry */ }
+      } else if(doc.id.startsWith('song:')){
+        try{
+          const raw = doc.data();
+          const parsed = typeof raw.value === 'string' ? JSON.parse(raw.value) : raw;
+          if(parsed && typeof parsed.guestName === 'string' && typeof parsed.songName === 'string'){
+            const slug = slugify(parsed.guestName);
+            if(!songsByGuest[slug]) songsByGuest[slug] = [];
+            songsByGuest[slug].push(parsed);
           }
         }catch(_){ /* skip malformed entry */ }
       }
@@ -527,6 +543,7 @@ function renderTable(){
     <th class="sortable ${activeCls('status')}" data-sort="status">Status <span class="sort-arrow">${arrow('status')}</span></th>
     <th>+1</th><th>Submitted</th><th>Relation</th>
     <th class="sortable ${activeCls('table')}" data-sort="table">Table <span class="sort-arrow">${arrow('table')}</span></th>
+    <th>Song Request</th>
     <th></th><th></th>
   </tr></thead><tbody></tbody>`;
   const tbody = tbl.querySelector('tbody');
@@ -544,6 +561,10 @@ function renderTable(){
     const plusOnePill = data.plusOne==='yes'
       ? `<span class="pill guest">${ICONS.guestPlus}${data.plusOneName || 'Guest'}</span>`
       : `<span class="pill muted">—</span>`;
+    const songs = songsByGuest[slugify(data.name)] || [];
+    const songCell = songs.length
+      ? songs.map(s => `<div>${s.songName}${s.artist ? ' <span style="opacity:0.6;">— ' + s.artist + '</span>' : ''}</div>`).join('')
+      : `<span class="pill muted">—</span>`;
     tr.innerHTML = `
       <td>${data.name}</td>
       <td>${statusPill}</td>
@@ -554,6 +575,7 @@ function renderTable(){
         <select class="category-select" style="margin-top:4px;"><option value="">—</option></select>
       </td>
       <td><select class="table-select" ${(data.attending!=='yes' || !currentSide) ? 'disabled':''}></select></td>
+      <td>${songCell}</td>
       <td><button class="save-row" ${data.attending!=='yes' ? 'disabled':''}>Save</button></td>
       <td><button class="delete-row" title="Delete this RSVP">🗑</button></td>
     `;
