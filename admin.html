@@ -244,6 +244,92 @@
   .pill.no{background:#e9dede; color:#7a4b4b;}
   .pill.guest{background:rgba(191,122,42,0.14); color:#8a5a1f;}
   .pill.muted{background:rgba(51,44,64,0.06); color:var(--ink); opacity:0.55;}
+
+  /* ---------- ADD GUEST ---------- */
+  .add-guest-btn{
+    background:var(--forest); border:1px solid var(--forest); color:var(--cream);
+    padding:9px 16px; font-family:'Jost',sans-serif; font-size:12px;
+    letter-spacing:0.06em; text-transform:uppercase; cursor:pointer;
+    transition:opacity 0.15s ease; white-space:nowrap;
+  }
+  .add-guest-btn:hover{ opacity:0.85; }
+
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(51,44,64,0.55);
+    display:none; align-items:center; justify-content:center;
+    padding:24px; z-index:30;
+  }
+  .modal-backdrop.show{ display:flex; }
+  .modal-box{
+    position:relative; width:100%; max-width:420px;
+    background:var(--cream); border:1px solid var(--line);
+    padding:28px 26px 24px; box-shadow:0 30px 70px -20px rgba(51,44,64,0.5);
+    max-height:calc(100vh - 48px); overflow-y:auto;
+  }
+  .modal-box h3{
+    font-family:'Cormorant Garamond', serif; font-weight:600; font-size:24px;
+    color:var(--forest); margin:0 0 18px;
+  }
+  .modal-close{
+    position:absolute; top:10px; right:14px; background:none; border:none;
+    font-size:22px; line-height:1; color:var(--ink); opacity:0.55; cursor:pointer; padding:6px;
+  }
+  .modal-close:hover{ opacity:1; }
+  .field-group{ margin-bottom:16px; }
+  .field-group label{
+    display:block; font-family:'Jost',sans-serif; font-size:11px; text-transform:uppercase;
+    letter-spacing:0.06em; color:var(--gold); margin-bottom:6px;
+  }
+  .field-group input[type=text]{
+    width:100%; padding:9px 12px; font-family:'EB Garamond',serif; font-size:15px;
+    border:1px solid var(--line); background:#fff;
+  }
+  .field-group select{
+    width:100%; font-family:'Jost',sans-serif; font-size:13px;
+    padding:8px 10px; border:1px solid var(--line); background:#fff;
+  }
+  .field-group select + select{ margin-top:8px; }
+  .radio-row{ display:flex; gap:18px; font-family:'Jost',sans-serif; }
+  .radio-row label{
+    display:flex; align-items:center; gap:6px; cursor:pointer;
+    text-transform:none; letter-spacing:0; color:var(--ink); font-size:13.5px;
+  }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+  .modal-btn{
+    font-family:'Jost',sans-serif; font-size:12px; text-transform:uppercase; letter-spacing:0.05em;
+    padding:9px 18px; cursor:pointer; border:1px solid var(--gold); background:none; color:var(--gold);
+    transition:background 0.15s ease, color 0.15s ease;
+  }
+  .modal-btn:hover{ background:var(--gold); color:var(--cream); }
+  .modal-btn.primary{ background:var(--forest); border-color:var(--forest); color:var(--cream); }
+  .modal-btn.primary:hover:not(:disabled){ opacity:0.85; background:var(--forest); }
+  .modal-btn:disabled{ opacity:0.5; cursor:default; }
+  .modal-error{ color:#a83a3a; font-size:12.5px; margin-top:2px; min-height:16px; font-family:'Jost',sans-serif; }
+  .admin-added-note{ font-size:10.5px; opacity:0.6; margin-top:2px; }
+
+  /* ---------- BULK TABLE ASSIGNMENT ---------- */
+  table.guest-table td.checkbox-cell, table.guest-table th.checkbox-cell{ width:26px; text-align:center; padding-left:12px; }
+  .bulk-bar{
+    position:fixed; left:50%; transform:translateX(-50%); bottom:0;
+    width:calc(100% - 24px); max-width:1080px;
+    z-index:20; display:none; align-items:center; gap:14px; flex-wrap:wrap;
+    background:var(--forest); color:var(--cream);
+    padding:14px 20px; font-family:'Jost',sans-serif; font-size:13px;
+    box-shadow:0 -10px 30px -10px rgba(51,44,64,0.45);
+  }
+  .bulk-bar.show{ display:flex; }
+  .bulk-bar select{
+    padding:7px 10px; font-family:'Jost',sans-serif; font-size:12.5px;
+    border:1px solid var(--cream); background:var(--cream); color:var(--ink);
+  }
+  .bulk-bar button{
+    font-family:'Jost',sans-serif; font-size:11.5px; text-transform:uppercase; letter-spacing:0.05em;
+    padding:8px 14px; cursor:pointer; border:1px solid var(--cream); background:none; color:var(--cream);
+    transition:background 0.15s ease, color 0.15s ease;
+  }
+  .bulk-bar button:hover:not(:disabled){ background:var(--cream); color:var(--forest); }
+  .bulk-bar button:disabled{ opacity:0.6; cursor:default; }
+  .bulk-bar .bulk-count{ font-weight:600; }
 </style>
 </head>
 <body>
@@ -290,8 +376,52 @@
   <div class="search-row">
     <input type="text" id="search-input" placeholder="Search by name…">
     <span class="search-count" id="search-count"></span>
+    <button class="add-guest-btn" id="add-guest-btn">+ Add Guest</button>
   </div>
   <div id="table-wrap"><div class="loading-note">Loading…</div></div>
+</div>
+
+<div class="modal-backdrop" id="addGuestBackdrop">
+  <div class="modal-box">
+    <button class="modal-close" id="addGuestClose" aria-label="Close">&times;</button>
+    <h3>Add Guest</h3>
+    <div class="field-group">
+      <label for="addGuestName">Full name</label>
+      <input type="text" id="addGuestName" placeholder="Guest's full name" autocomplete="off">
+    </div>
+    <div class="field-group">
+      <label>Bringing a +1?</label>
+      <div class="radio-row">
+        <label><input type="radio" name="addGuestPlusOne" value="no" checked> No</label>
+        <label><input type="radio" name="addGuestPlusOne" value="yes"> Yes</label>
+      </div>
+    </div>
+    <div class="field-group" id="addGuestPlusOneNameGroup" style="display:none;">
+      <label for="addGuestPlusOneName">+1's name</label>
+      <input type="text" id="addGuestPlusOneName" placeholder="+1's full name" autocomplete="off">
+    </div>
+    <div class="field-group">
+      <label>Relation</label>
+      <select id="addGuestSide">
+        <option value="">—</option>
+        <option value="marc">Marc</option>
+        <option value="nancy">Nancy</option>
+      </select>
+      <select id="addGuestCategory"><option value="">—</option></select>
+    </div>
+    <div class="modal-error" id="addGuestError"></div>
+    <div class="modal-actions">
+      <button class="modal-btn" id="addGuestCancel">Cancel</button>
+      <button class="modal-btn primary" id="addGuestSubmit">Add Guest</button>
+    </div>
+  </div>
+</div>
+
+<div class="bulk-bar" id="bulkBar">
+  <span><span class="bulk-count" id="bulkCount">0</span> selected</span>
+  <select id="bulkTableSelect"><option value="">Choose table…</option></select>
+  <button id="bulkAssignBtn" type="button">Assign Table</button>
+  <button id="bulkClearBtn" type="button">Clear</button>
 </div>
 
 <script>
@@ -311,6 +441,7 @@ const PASSCODE = 'MN2026';
 let allEntries = [];
 let songsByGuest = {};
 let sortState = { key: 'name', dir: 1 };
+let selectedKeys = new Set();
 
 function slugify(name){
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
@@ -501,6 +632,153 @@ function getTableOptions(side, category){
   return ALL_TABLES;
 }
 
+document.getElementById('bulkTableSelect').innerHTML = '<option value="">Choose table…</option>' +
+  ALL_TABLES.map(n => `<option value="${n}">${n}</option>`).join('');
+
+function updateBulkBar(){
+  const bar = document.getElementById('bulkBar');
+  document.getElementById('bulkCount').textContent = selectedKeys.size;
+  bar.classList.toggle('show', selectedKeys.size > 0);
+}
+
+document.getElementById('bulkClearBtn').addEventListener('click', ()=>{
+  selectedKeys.clear();
+  renderTable();
+});
+
+document.getElementById('bulkAssignBtn').addEventListener('click', async ()=>{
+  const val = parseInt(document.getElementById('bulkTableSelect').value, 10);
+  if(!val){ alert('Choose a table number first.'); return; }
+  const btn = document.getElementById('bulkAssignBtn');
+  btn.disabled = true;
+  btn.textContent = 'Assigning…';
+  const targets = allEntries.filter(e => selectedKeys.has(e.key));
+  try{
+    await Promise.all(targets.map(({key, data})=>{
+      data.tableNumber = val;
+      return db.collection(COLLECTION).doc(key).set({
+        value: JSON.stringify(data), shared: true, updatedAt: Date.now()
+      });
+    }));
+    selectedKeys.clear();
+    renderStats();
+    renderChart();
+    renderSeating();
+    renderTable();
+  }catch(err){
+    alert('Something went wrong assigning tables — please check your connection and try again.');
+    console.error(err);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Assign Table';
+  }
+});
+
+// ---------- ADD GUEST MODAL ----------
+const addGuestBackdrop = document.getElementById('addGuestBackdrop');
+const addGuestNameInput = document.getElementById('addGuestName');
+const addGuestPlusOneNameGroup = document.getElementById('addGuestPlusOneNameGroup');
+const addGuestPlusOneNameInput = document.getElementById('addGuestPlusOneName');
+const addGuestSideSelect = document.getElementById('addGuestSide');
+const addGuestCategorySelect = document.getElementById('addGuestCategory');
+const addGuestError = document.getElementById('addGuestError');
+const addGuestSubmitBtn = document.getElementById('addGuestSubmit');
+
+function openAddGuestModal(){
+  addGuestNameInput.value = '';
+  addGuestPlusOneNameInput.value = '';
+  addGuestPlusOneNameGroup.style.display = 'none';
+  document.querySelector('input[name="addGuestPlusOne"][value="no"]').checked = true;
+  addGuestSideSelect.value = '';
+  addGuestCategorySelect.innerHTML = '<option value="">—</option>';
+  addGuestError.textContent = '';
+  addGuestBackdrop.classList.add('show');
+  addGuestNameInput.focus();
+}
+function closeAddGuestModal(){
+  addGuestBackdrop.classList.remove('show');
+}
+document.getElementById('add-guest-btn').addEventListener('click', openAddGuestModal);
+document.getElementById('addGuestClose').addEventListener('click', closeAddGuestModal);
+document.getElementById('addGuestCancel').addEventListener('click', closeAddGuestModal);
+addGuestBackdrop.addEventListener('click', (e)=>{ if(e.target === addGuestBackdrop) closeAddGuestModal(); });
+
+document.querySelectorAll('input[name="addGuestPlusOne"]').forEach(radio=>{
+  radio.addEventListener('change', ()=>{
+    const isYes = document.querySelector('input[name="addGuestPlusOne"]:checked').value === 'yes';
+    addGuestPlusOneNameGroup.style.display = isYes ? 'block' : 'none';
+  });
+});
+
+addGuestSideSelect.addEventListener('change', ()=>{
+  const opts = CATEGORY_OPTIONS[addGuestSideSelect.value] || [];
+  addGuestCategorySelect.innerHTML = '<option value="">—</option>' +
+    opts.map(c => `<option value="${c}">${c}</option>`).join('');
+});
+
+addGuestSubmitBtn.addEventListener('click', async ()=>{
+  const name = addGuestNameInput.value.trim();
+  if(!name){
+    addGuestError.textContent = "Please enter the guest's name.";
+    return;
+  }
+  const plusOneChoice = document.querySelector('input[name="addGuestPlusOne"]:checked').value;
+  const plusOneName = plusOneChoice === 'yes' ? addGuestPlusOneNameInput.value.trim() : '';
+  if(plusOneChoice === 'yes' && !plusOneName){
+    addGuestError.textContent = 'Please enter the +1\'s name, or switch to "No".';
+    return;
+  }
+  const key = 'rsvp:' + slugify(name);
+  addGuestError.textContent = '';
+  addGuestSubmitBtn.disabled = true;
+  addGuestSubmitBtn.textContent = 'Adding…';
+  try{
+    const existingDoc = await db.collection(COLLECTION).doc(key).get();
+    let existingData = null;
+    if(existingDoc.exists){
+      const ok = window.confirm(`${name} already has an entry on the guest list. Overwrite it with these details? (Their existing table/relation will be kept unless you set a new one here.)`);
+      if(!ok){
+        addGuestSubmitBtn.disabled = false;
+        addGuestSubmitBtn.textContent = 'Add Guest';
+        return;
+      }
+      try{ existingData = JSON.parse(existingDoc.data().value); }catch(_){}
+    }
+    // Leaving Relation blank when overwriting an existing guest keeps their
+    // current side/category/table rather than wiping seating work already done.
+    const data = {
+      name,
+      attending: 'yes',
+      plusOne: plusOneChoice,
+      plusOneName,
+      tableNumber: existingData ? (existingData.tableNumber || null) : null,
+      side: addGuestSideSelect.value || (existingData ? (existingData.side || '') : ''),
+      category: addGuestCategorySelect.value || (existingData ? (existingData.category || '') : ''),
+      submittedAt: new Date().toLocaleString('en-GB', { timeZone:'Africa/Cairo', dateStyle:'medium', timeStyle:'medium' }) + ' (Cairo)',
+      submittedAtMs: Date.now(),
+      addedByAdmin: true
+    };
+    await db.collection(COLLECTION).doc(key).set({
+      value: JSON.stringify(data), shared: true, updatedAt: Date.now()
+    });
+    const idx = allEntries.findIndex(e => e.key === key);
+    if(idx >= 0){ allEntries[idx] = { key, data }; }
+    else { allEntries.push({ key, data }); }
+    allEntries.sort((a,b)=> a.data.name.localeCompare(b.data.name));
+    renderStats();
+    renderChart();
+    renderSeating();
+    renderTable();
+    closeAddGuestModal();
+  }catch(err){
+    addGuestError.textContent = 'Something went wrong — please check your connection and try again.';
+    console.error(err);
+  }finally{
+    addGuestSubmitBtn.disabled = false;
+    addGuestSubmitBtn.textContent = 'Add Guest';
+  }
+});
+
 function renderTable(){
   const wrap = document.getElementById('table-wrap');
   const countEl = document.getElementById('search-count');
@@ -539,6 +817,7 @@ function renderTable(){
   const tbl = document.createElement('table');
   tbl.className = 'guest-table';
   tbl.innerHTML = `<thead><tr>
+    <th class="checkbox-cell"><input type="checkbox" id="selectAllCheckbox" title="Select all"></th>
     <th class="sortable ${activeCls('name')}" data-sort="name">Name <span class="sort-arrow">${arrow('name')}</span></th>
     <th class="sortable ${activeCls('status')}" data-sort="status">Status <span class="sort-arrow">${arrow('status')}</span></th>
     <th>+1</th><th>Submitted</th><th>Relation</th>
@@ -547,6 +826,20 @@ function renderTable(){
     <th></th><th></th>
   </tr></thead><tbody></tbody>`;
   const tbody = tbl.querySelector('tbody');
+  const selectAllCb = tbl.querySelector('#selectAllCheckbox');
+  function refreshSelectAllState(){
+    const cbs = Array.from(tbl.querySelectorAll('.row-checkbox:not(:disabled)'));
+    if(cbs.length === 0){ selectAllCb.checked = false; selectAllCb.indeterminate = false; return; }
+    const checkedCount = cbs.filter(cb => cb.checked).length;
+    selectAllCb.checked = checkedCount === cbs.length;
+    selectAllCb.indeterminate = checkedCount > 0 && checkedCount < cbs.length;
+  }
+  selectAllCb.addEventListener('change', ()=>{
+    tbl.querySelectorAll('.row-checkbox:not(:disabled)').forEach(cb=>{
+      cb.checked = selectAllCb.checked;
+      cb.dispatchEvent(new Event('change'));
+    });
+  });
   filtered.forEach(({key, data})=>{
     const tr = document.createElement('tr');
     const currentSide = data.side || '';
@@ -565,11 +858,13 @@ function renderTable(){
     const songCell = songs.length
       ? songs.map(s => `<div>${s.songName}${s.artist ? ' <span style="opacity:0.6;">— ' + s.artist + '</span>' : ''}</div>`).join('')
       : `<span class="pill muted">—</span>`;
+    const adminNote = data.addedByAdmin ? '<div class="admin-added-note">Added by admin</div>' : '';
     tr.innerHTML = `
+      <td class="checkbox-cell"><input type="checkbox" class="row-checkbox" ${data.attending!=='yes' ? 'disabled title="Guest declined"':''}></td>
       <td>${data.name}</td>
       <td>${statusPill}</td>
       <td>${plusOnePill}</td>
-      <td>${data.submittedAt || '—'}</td>
+      <td>${data.submittedAt || '—'}${adminNote}</td>
       <td>
         <select class="side-select">${sideOptionsHTML}</select>
         <select class="category-select" style="margin-top:4px;"><option value="">—</option></select>
@@ -584,6 +879,13 @@ function renderTable(){
     const delBtn = tr.querySelector('.delete-row');
     const sideSelect = tr.querySelector('.side-select');
     const categorySelect = tr.querySelector('.category-select');
+    const rowCheckbox = tr.querySelector('.row-checkbox');
+    rowCheckbox.checked = selectedKeys.has(key);
+    rowCheckbox.addEventListener('change', ()=>{
+      if(rowCheckbox.checked){ selectedKeys.add(key); } else { selectedKeys.delete(key); }
+      updateBulkBar();
+      refreshSelectAllState();
+    });
 
     function populateCategories(selectedValue){
       const opts = CATEGORY_OPTIONS[sideSelect.value] || [];
@@ -661,6 +963,8 @@ function renderTable(){
 
     tbody.appendChild(tr);
   });
+  refreshSelectAllState();
+  updateBulkBar();
   scroll.appendChild(tbl);
   wrap.innerHTML = '';
   wrap.appendChild(scroll);
