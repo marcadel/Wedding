@@ -192,6 +192,10 @@
     border:1px solid var(--line); background:var(--cream);
   }
   .search-count{ font-family:'Jost',sans-serif; font-size:12px; color:#7a7268; }
+  .search-row select{
+    padding:10px 12px; font-family:'Jost',sans-serif; font-size:13px;
+    border:1px solid var(--line); background:var(--cream); color:var(--ink);
+  }
   .table-scroll{
     max-height:52vh; overflow-y:auto; overflow-x:auto;
     border:1px solid var(--line);
@@ -375,6 +379,7 @@
   <h2 class="section-head" id="head-list"></h2>
   <div class="search-row">
     <input type="text" id="search-input" placeholder="Search by name…">
+    <select id="relation-filter"><option value="">All Relations</option></select>
     <span class="search-count" id="search-count"></span>
     <button class="add-guest-btn" id="add-guest-btn">+ Add Guest</button>
   </div>
@@ -610,21 +615,30 @@ const CATEGORY_OPTIONS = {
   nancy: ["Nancy's Family","Nancy's Church Friends","Nancy's Work Friends","Nancy's University Friends","Nancy's School Friends","Touna's Friends","Nashaat's Friends","Marian's Friends"]
 };
 
-// PLACEHOLDER table ranges — replace these with your final layout once it's decided.
-// range(a,b) means tables a through b inclusive. Any category not listed here
-// falls back to its side's overall range, and if no side is chosen, all 50 tables show.
+(function populateRelationFilter(){
+  const sel = document.getElementById('relation-filter');
+  let html = '<option value="">All Relations</option>';
+  html += '<optgroup label="Marc">' +
+    '<option value="side:marc">Marc (any relation)</option>' +
+    CATEGORY_OPTIONS.marc.map(c => `<option value="cat:${c}">${c}</option>`).join('') +
+    '</optgroup>';
+  html += '<optgroup label="Nancy">' +
+    '<option value="side:nancy">Nancy (any relation)</option>' +
+    CATEGORY_OPTIONS.nancy.map(c => `<option value="cat:${c}">${c}</option>`).join('') +
+    '</optgroup>';
+  html += '<option value="none">No relation set</option>';
+  sel.innerHTML = html;
+})();
+document.getElementById('relation-filter').addEventListener('change', renderTable);
+
+// Tables are shared across both sides — no side or category locks anyone to a
+// particular range anymore, so any guest can be seated at any of tables 1-30.
+// (SIDE_RANGES / CATEGORY_RANGES are kept empty, not removed, in case a per-side
+// or per-category range is ever wanted again later.)
 function range(a,b){ const arr=[]; for(let i=a;i<=b;i++) arr.push(i); return arr; }
-const SIDE_RANGES = {
-  marc: range(1,20),
-  nancy: range(21,40)
-};
-const CATEGORY_RANGES = {
-  "Marc's Family": range(1,5)
-  // Add the rest once you send the final layout, e.g.:
-  // "Marc's Church Friends": range(6,9),
-  // "Nancy's Family": range(21,25),
-};
-const ALL_TABLES = range(1,50);
+const SIDE_RANGES = {};
+const CATEGORY_RANGES = {};
+const ALL_TABLES = range(1,30);
 
 function getTableOptions(side, category){
   if(category && CATEGORY_RANGES[category]) return CATEGORY_RANGES[category];
@@ -783,7 +797,15 @@ function renderTable(){
   const wrap = document.getElementById('table-wrap');
   const countEl = document.getElementById('search-count');
   const q = document.getElementById('search-input').value.trim().toLowerCase();
-  const filtered = allEntries.filter(e=> e.data.name.toLowerCase().includes(q));
+  const relFilter = document.getElementById('relation-filter').value;
+  const filtered = allEntries.filter(e=>{
+    if(!e.data.name.toLowerCase().includes(q)) return false;
+    if(!relFilter) return true;
+    if(relFilter === 'none') return !e.data.side;
+    if(relFilter.indexOf('side:') === 0) return e.data.side === relFilter.slice(5);
+    if(relFilter.indexOf('cat:') === 0) return e.data.category === relFilter.slice(4);
+    return true;
+  });
 
   countEl.textContent = allEntries.length
     ? `Showing ${filtered.length} of ${allEntries.length}`
