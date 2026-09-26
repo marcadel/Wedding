@@ -197,6 +197,13 @@
     color:var(--forest); border:1px solid var(--line); background:#fff;
     padding:2px 6px; width:100%;
   }
+  .merged-card .t-num{ margin-bottom:2px; }
+  .merged-card > .t-capacity{ padding-bottom:10px; border-bottom:1px solid var(--line); margin-bottom:10px; }
+  .merged-sub{ margin-top:10px; }
+  .merged-sub:first-of-type{ margin-top:0; }
+  .merged-sub + .merged-sub{ padding-top:10px; border-top:1px dashed var(--line); }
+  .table-card .t-num.sub{ font-size:16px; }
+  .t-subnum-empty{ opacity:0.55; font-style:italic; }
 
   /* ---------- MERGE TABLES ---------- */
   .merge-panel{
@@ -298,6 +305,17 @@
     transition:opacity 0.15s ease; white-space:nowrap;
   }
   .add-guest-btn:hover{ opacity:0.85; }
+
+  .save-all-btn{
+    background:none; border:1px solid var(--forest); color:var(--forest);
+    padding:9px 16px; font-family:'Jost',sans-serif; font-size:12px;
+    letter-spacing:0.06em; text-transform:uppercase; cursor:pointer;
+    transition:background 0.15s ease, color 0.15s ease, opacity 0.15s ease; white-space:nowrap;
+  }
+  .save-all-btn:disabled{ opacity:0.4; cursor:default; }
+  .save-all-btn.has-changes{ background:var(--forest); color:var(--cream); }
+  .save-all-btn.has-changes:hover{ opacity:0.85; }
+  table.guest-table button.save-row.dirty{ background:var(--gold); border-color:var(--gold); color:var(--cream); }
 
   .modal-backdrop{
     position:fixed; inset:0; background:rgba(51,44,64,0.55);
@@ -433,6 +451,7 @@
     <input type="text" id="search-input" placeholder="Search by name…">
     <select id="relation-filter"><option value="">All Relations</option></select>
     <span class="search-count" id="search-count"></span>
+    <button class="save-all-btn" id="save-all-btn" disabled>Save All</button>
     <button class="add-guest-btn" id="add-guest-btn">+ Add Guest</button>
   </div>
   <div id="table-wrap"><div class="loading-note">Loading…</div></div>
@@ -499,6 +518,58 @@ let allEntries = [];
 let songsByGuest = {};
 let sortState = { key: 'name', dir: 1 };
 let selectedKeys = new Set();
+// Rows with unsaved edits (side/category/table/+1). rowSavers holds each
+// row's own save function so "Save All" can trigger every dirty row's save
+// in one go, even one that's currently hidden by a search/filter.
+let dirtyKeys = new Set();
+let rowSavers = new Map();
+function markDirty(key, tr){
+  dirtyKeys.add(key);
+  const saveBtn = tr.querySelector('.save-row');
+  if(saveBtn) saveBtn.classList.add('dirty');
+  updateSaveAllButton();
+}
+function clearDirty(key, tr){
+  dirtyKeys.delete(key);
+  const saveBtn = tr && tr.querySelector('.save-row');
+  if(saveBtn) saveBtn.classList.remove('dirty');
+  updateSaveAllButton();
+}
+function updateSaveAllButton(){
+  const btn = document.getElementById('save-all-btn');
+  btn.disabled = dirtyKeys.size === 0;
+  btn.classList.toggle('has-changes', dirtyKeys.size > 0);
+  btn.textContent = dirtyKeys.size > 0 ? `Save All (${dirtyKeys.size})` : 'Save All';
+}
+document.getElementById('save-all-btn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('save-all-btn');
+  const keys = Array.from(dirtyKeys);
+  if(keys.length === 0) return;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  let succeeded = 0;
+  const failures = [];
+  for(const key of keys){
+    const saver = rowSavers.get(key);
+    if(!saver){ dirtyKeys.delete(key); continue; }
+    try{
+      const result = await saver({ silent: true });
+      if(result && result.ok){ succeeded++; }
+      else { failures.push({ key, reason: result ? result.reason : 'unknown error' }); }
+    }catch(err){
+      failures.push({ key, reason: 'network error' });
+      console.error(err);
+    }
+  }
+  updateSaveAllButton();
+  if(failures.length){
+    const names = failures.map(f => {
+      const entry = allEntries.find(e => e.key === f.key);
+      return (entry ? entry.data.name : f.key) + ' (' + f.reason + ')';
+    }).join(', ');
+    alert(`Saved ${succeeded} change(s). ${failures.length} could not be saved: ${names}`);
+  }
+});
 let tableConfig = { labels: {}, merges: [] };
 const TABLE_CAPACITY = 10;
 
@@ -664,8 +735,9 @@ function renderSeating(){
     grid.innerHTML = '<div class="loading-note">No attending guests yet.</div>';
     return;
   }
-  // Merged tables (e.g. 5+6) render as one combined card even though guests
-  // may be spread across either table number underneath.
+  // Merged tables (e.g. 1+6) render as one combined card even though guests
+  // may be spread across either table number underneath. Each table inside
+  // the pair keeps and shows its own name.
   const renderedGroups = new Set();
   tableNums.forEach(num=>{
     const group = getMergeGroup(num);
@@ -676,23 +748,50 @@ function renderSeating(){
     const allNames = group.reduce((acc,n)=> acc.concat(byTable[n] || []), []);
     const capacity = group.length * TABLE_CAPACITY;
     const isSingle = group.length === 1;
-    const label = isSingle ? getTableLabel(group[0]) : '';
-    const plainTitle = group.length > 1 ? `Table ${group.join(' + ')}` : `Table ${group[0]}`;
 
     const card = document.createElement('div');
-    card.className = 'table-card';
-    card.innerHTML = `
-      <div class="t-num-row">
-        <div class="t-num">${label || plainTitle}</div>
-        ${isSingle ? `<button class="label-edit-btn" title="Rename table">✎</button>` : ''}
-      </div>
-      ${label ? `<div class="t-subnum">${plainTitle}</div>` : ''}
-      <div class="t-capacity ${allNames.length > capacity ? 'over':''}">${allNames.length}/${capacity} seated</div>
-      <ul>${allNames.map(n=>`<li>${n}</li>`).join('')}</ul>
-    `;
-    grid.appendChild(card);
+    card.className = 'table-card' + (isSingle ? '' : ' merged-card');
+
     if(isSingle){
-      card.querySelector('.label-edit-btn').addEventListener('click', ()=> startLabelEdit(card, group[0]));
+      const label = getTableLabel(group[0]);
+      const plainTitle = `Table ${group[0]}`;
+      card.innerHTML = `
+        <div class="t-num-row">
+          <div class="t-num">${label || plainTitle}</div>
+          <button class="label-edit-btn" title="Rename table">✎</button>
+        </div>
+        ${label ? `<div class="t-subnum">${plainTitle}</div>` : ''}
+        <div class="t-capacity ${allNames.length > capacity ? 'over':''}">${allNames.length}/${capacity} seated</div>
+        <ul>${allNames.map(n=>`<li>${n}</li>`).join('')}</ul>
+      `;
+      grid.appendChild(card);
+      card.querySelector('.label-edit-btn').addEventListener('click', function(){
+        startLabelEdit(this.closest('.t-num-row').querySelector('.t-num'), group[0]);
+      });
+    } else {
+      // Combined heading, e.g. "Table 1 + Table 6", then each table's own
+      // name listed underneath with its own guests.
+      card.innerHTML = `
+        <div class="t-num">Table ${group.join(' + ')}</div>
+        <div class="t-capacity ${allNames.length > capacity ? 'over':''}">${allNames.length}/${capacity} seated</div>
+        ${group.map(n => `
+          <div class="merged-sub" data-table="${n}">
+            <div class="t-num-row">
+              <div class="t-num sub">Table ${n}</div>
+              <button class="label-edit-btn" title="Rename table">✎</button>
+            </div>
+            <div class="t-subnum">${getTableLabel(n) || '<span class="t-subnum-empty">Click ✎ to name this table</span>'}</div>
+            <ul>${(byTable[n]||[]).map(nm=>`<li>${nm}</li>`).join('') || '<li class="t-subnum-empty">No guests yet</li>'}</ul>
+          </div>
+        `).join('')}
+      `;
+      grid.appendChild(card);
+      card.querySelectorAll('.merged-sub').forEach(sub=>{
+        const n = Number(sub.dataset.table);
+        sub.querySelector('.label-edit-btn').addEventListener('click', function(){
+          startLabelEdit(sub.querySelector('.t-num.sub'), n);
+        });
+      });
     }
   });
   if(unassigned.length){
@@ -703,8 +802,7 @@ function renderSeating(){
   }
 }
 
-function startLabelEdit(card, tableNum){
-  const numEl = card.querySelector('.t-num');
+function startLabelEdit(numEl, tableNum){
   const current = getTableLabel(tableNum);
   numEl.innerHTML = `<input type="text" class="label-input" placeholder="Table ${tableNum} label…">`;
   const input = numEl.querySelector('.label-input');
@@ -926,11 +1024,13 @@ document.getElementById('bulkAssignBtn').addEventListener('click', async ()=>{
   try{
     await Promise.all(targets.map(({key, data})=>{
       data.tableNumber = val;
+      dirtyKeys.delete(key);
       return db.collection(COLLECTION).doc(key).set({
         value: JSON.stringify(data), shared: true, updatedAt: Date.now()
       });
     }));
     selectedKeys.clear();
+    updateSaveAllButton();
     renderStats();
     renderChart();
     renderSeating();
@@ -1169,8 +1269,26 @@ function renderTable(){
     const plusOneSelect = tr.querySelector('.plusone-select');
     const plusOneNameInput = tr.querySelector('.plusone-name');
     const rowCheckbox = tr.querySelector('.row-checkbox');
+    if(dirtyKeys.has(key)) btn.classList.add('dirty');
     plusOneSelect.addEventListener('change', ()=>{
-      plusOneNameInput.style.display = plusOneSelect.value === 'yes' ? 'block' : 'none';
+      const newVal = plusOneSelect.value;
+      if(newVal === 'yes' && data.tableNumber){
+        const capacity = getTableCapacity(data.tableNumber);
+        const others = getTableHeadcount(data.tableNumber, key);
+        if(others + 2 > capacity){
+          alert(`Adding a +1 would put Table ${data.tableNumber} over its ${capacity}-guest limit. Choose a different table first, or merge tables.`);
+          plusOneSelect.value = 'no';
+          return;
+        }
+      }
+      plusOneNameInput.style.display = newVal === 'yes' ? 'block' : 'none';
+      data.plusOne = newVal;
+      if(newVal !== 'yes'){ data.plusOneName = ''; plusOneNameInput.value = ''; }
+      markDirty(key, tr);
+    });
+    plusOneNameInput.addEventListener('input', ()=>{
+      data.plusOneName = plusOneNameInput.value.trim();
+      markDirty(key, tr);
     });
     rowCheckbox.checked = selectedKeys.has(key);
     rowCheckbox.addEventListener('change', ()=>{
@@ -1209,46 +1327,63 @@ function renderTable(){
     }
     populateCategories(data.category || '');
     populateTables();
-    sideSelect.addEventListener('change', ()=>{ populateCategories(''); populateTables(); });
-    categorySelect.addEventListener('change', populateTables);
-
-    btn.addEventListener('click', async ()=>{
+    sideSelect.addEventListener('change', ()=>{
+      data.side = sideSelect.value || '';
+      data.category = '';
+      populateCategories('');
+      populateTables();
+      markDirty(key, tr);
+    });
+    categorySelect.addEventListener('change', ()=>{
+      data.category = categorySelect.value || '';
+      populateTables();
+      markDirty(key, tr);
+    });
+    tableSelect.addEventListener('change', ()=>{
       const val = parseInt(tableSelect.value, 10) || null;
-      const newPlusOne = data.attending==='yes' ? plusOneSelect.value : 'no';
-      const newPlusOneName = newPlusOne === 'yes' ? plusOneNameInput.value.trim() : '';
-      if(newPlusOne === 'yes' && !newPlusOneName){
-        alert("Please enter the +1's name, or set their +1 to \"No +1\".");
-        return;
-      }
       if(val){
         const capacity = getTableCapacity(val);
         const others = getTableHeadcount(val, key);
-        const thisHeadcount = 1 + (data.attending==='yes' && newPlusOne==='yes' ? 1 : 0);
+        const thisHeadcount = 1 + (data.attending==='yes' && data.plusOne==='yes' ? 1 : 0);
         if(others + thisHeadcount > capacity){
           alert(`Table ${val} would have ${others + thisHeadcount} guests, but it only seats ${capacity}. Merge it with another table first, or choose a different table.`);
+          tableSelect.value = data.tableNumber || '';
           return;
         }
       }
       data.tableNumber = val;
-      data.side = sideSelect.value || '';
-      data.category = categorySelect.value || '';
-      data.plusOne = newPlusOne;
-      data.plusOneName = newPlusOneName;
+      markDirty(key, tr);
+    });
+
+    // Shared by the row's own Save button and "Save All". opts.silent
+    // suppresses the alert on failure so Save All can batch one summary
+    // instead of a popup per row.
+    async function saveRow(opts){
+      const silent = opts && opts.silent;
+      if(data.plusOne === 'yes' && !data.plusOneName){
+        if(!silent) alert("Please enter the +1's name, or set their +1 to \"No +1\".");
+        return { ok:false, reason:"missing +1 name" };
+      }
       btn.textContent = 'Saving…';
       try{
         await db.collection(COLLECTION).doc(key).set({
           value: JSON.stringify(data), shared: true, updatedAt: Date.now()
         });
         btn.textContent = 'Saved ✓';
+        clearDirty(key, tr);
         renderStats();
         renderChart();
         renderSeating();
         setTimeout(()=>{ btn.textContent = 'Save'; }, 1400);
+        return { ok:true };
       }catch(err){
         btn.textContent = 'Error';
         console.error(err);
+        return { ok:false, reason:'network error' };
       }
-    });
+    }
+    rowSavers.set(key, saveRow);
+    btn.addEventListener('click', ()=> saveRow());
 
     delBtn.addEventListener('click', async ()=>{
       const ok = window.confirm(`Delete ${data.name}'s RSVP? This cannot be undone.`);
@@ -1258,6 +1393,10 @@ function renderTable(){
       try{
         await db.collection(COLLECTION).doc(key).delete();
         allEntries = allEntries.filter(e => e.key !== key);
+        dirtyKeys.delete(key);
+        rowSavers.delete(key);
+        selectedKeys.delete(key);
+        updateSaveAllButton();
         renderStats();
         renderChart();
         renderSeating();
