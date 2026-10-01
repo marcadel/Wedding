@@ -115,6 +115,20 @@
   }
   .pill.no{background:#e9dede; color:#7a4b4b;}
   .pill.muted{background:rgba(51,44,64,0.06); color:var(--ink); opacity:0.7;}
+  .side-pill{
+    display:inline-block; font-family:'Jost',sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:0.04em; text-transform:uppercase; padding:2px 9px; border-radius:20px;
+    margin-left:8px; vertical-align:middle;
+  }
+  .side-pill.side-marc{ background:rgba(75,63,94,0.12); color:var(--forest); }
+  .side-pill.side-nancy{ background:rgba(158,131,184,0.22); color:var(--gold); }
+  .mini-side-pill{
+    display:inline-block; font-family:'Jost',sans-serif; font-size:9px; font-weight:600;
+    letter-spacing:0.03em; text-transform:uppercase; padding:1px 6px; border-radius:20px;
+    margin-left:6px; vertical-align:middle;
+  }
+  .mini-side-pill.side-marc{ background:rgba(75,63,94,0.12); color:var(--forest); }
+  .mini-side-pill.side-nancy{ background:rgba(158,131,184,0.22); color:var(--gold); }
 
   /* ---------- section heads ---------- */
   h2.section-head{
@@ -195,7 +209,7 @@ const COLLECTION = 'wedding_data';
 // Separate, lower-privilege passcode from the couple's dashboard (admin.html)
 // — this page is read-only, but still gated since it shows the full guest
 // list and seating chart. Change this before sharing the link with ushers.
-const PASSCODE = 'WELCOME2026';
+const PASSCODE = 'T2026';
 
 const TABLE_CAPACITY = 10;
 let allEntries = [];
@@ -203,6 +217,17 @@ let tableConfig = { labels: {}, merges: [] };
 
 function slugify(name){
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+}
+
+// Shows which side of the family/friends a guest belongs to.
+function sideLabel(side){
+  if(side === 'marc') return 'Mark';
+  if(side === 'nancy') return 'Nancy';
+  return '';
+}
+function sidePillHtml(side, cls){
+  const label = sideLabel(side);
+  return label ? `<span class="${cls} side-${side}">${label}</span>` : '';
 }
 
 const ICONS = {
@@ -282,7 +307,8 @@ function renderSeating(){
   const byTable = {};
   const unassigned = [];
   attending.forEach(({data})=>{
-    const names = [data.name].concat(data.plusOne==='yes' ? [data.plusOneName || 'Guest'] : []);
+    const names = [data.name].concat(data.plusOne==='yes' ? [data.plusOneName || 'Guest'] : [])
+      .map(name => ({ name, side: data.side }));
     if(data.tableNumber){
       byTable[data.tableNumber] = (byTable[data.tableNumber] || []).concat(names);
     } else {
@@ -315,7 +341,7 @@ function renderSeating(){
         <div class="t-num">${label || plainTitle}</div>
         ${label ? `<div class="t-subnum">${plainTitle}</div>` : ''}
         <div class="t-capacity ${allNames.length > capacity ? 'over':''}">${allNames.length}/${capacity} seated</div>
-        <ul>${allNames.map(n=>`<li>${n}</li>`).join('')}</ul>
+        <ul>${allNames.map(n=>`<li>${n.name}${sidePillHtml(n.side, 'mini-side-pill')}</li>`).join('')}</ul>
       `;
     } else {
       card.innerHTML = `
@@ -325,7 +351,7 @@ function renderSeating(){
           <div class="merged-sub">
             <div class="t-num sub">${getTableLabel(n) || ('Table ' + n)}</div>
             ${getTableLabel(n) ? `<div class="t-subnum">Table ${n}</div>` : ''}
-            <ul>${(byTable[n]||[]).map(nm=>`<li>${nm}</li>`).join('') || '<li style="opacity:0.5;">No guests yet</li>'}</ul>
+            <ul>${(byTable[n]||[]).map(nm=>`<li>${nm.name}${sidePillHtml(nm.side, 'mini-side-pill')}</li>`).join('') || '<li style="opacity:0.5;">No guests yet</li>'}</ul>
           </div>
         `).join('')}
       `;
@@ -335,7 +361,7 @@ function renderSeating(){
   if(unassigned.length){
     const card = document.createElement('div');
     card.className = 'table-card unassigned-card';
-    card.innerHTML = `<div class="t-num">Unassigned</div><ul>${unassigned.map(n=>`<li>${n}</li>`).join('')}</ul>`;
+    card.innerHTML = `<div class="t-num">Unassigned</div><ul>${unassigned.map(n=>`<li>${n.name}${sidePillHtml(n.side, 'mini-side-pill')}</li>`).join('')}</ul>`;
     grid.appendChild(card);
   }
 }
@@ -365,16 +391,17 @@ function renderResults(){
     const subLine = matchedViaPlusOne
       ? `Arriving with ${data.name}`
       : (data.plusOne==='yes' ? `+1: ${data.plusOneName || 'Guest'}` : '');
+    const sidePill = sidePillHtml(data.side, 'side-pill');
 
     if(data.attending !== 'yes'){
       return `<div class="result-card">
-        <div class="result-name">${displayName}</div>
+        <div class="result-name">${displayName}${sidePill}</div>
         <span class="pill no">Not on the attending list</span>
       </div>`;
     }
     if(!data.tableNumber){
       return `<div class="result-card">
-        <div class="result-name">${displayName}</div>
+        <div class="result-name">${displayName}${sidePill}</div>
         ${subLine ? `<div class="result-sub">${subLine}</div>` : ''}
         <div class="result-none">No table assigned yet — please check with the couple.</div>
       </div>`;
@@ -385,7 +412,7 @@ function renderResults(){
       ? `Shares Table ${group.join(' + ')}`
       : '';
     return `<div class="result-card">
-      <div class="result-name">${displayName}</div>
+      <div class="result-name">${displayName}${sidePill}</div>
       ${subLine ? `<div class="result-sub">${subLine}</div>` : ''}
       <div class="result-table">
         <span class="big-num">${data.tableNumber}</span>
