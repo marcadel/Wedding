@@ -307,8 +307,7 @@ function renderSeating(){
   const byTable = {};
   const unassigned = [];
   attending.forEach(({data})=>{
-    const names = [data.name].concat(data.plusOne==='yes' ? [data.plusOneName || 'Guest'] : [])
-      .map(name => ({ name, side: data.side }));
+    const names = [data.name].concat(data.plusOne==='yes' ? [data.plusOneName || 'Guest'] : []);
     if(data.tableNumber){
       byTable[data.tableNumber] = (byTable[data.tableNumber] || []).concat(names);
     } else {
@@ -341,7 +340,7 @@ function renderSeating(){
         <div class="t-num">${label || plainTitle}</div>
         ${label ? `<div class="t-subnum">${plainTitle}</div>` : ''}
         <div class="t-capacity ${allNames.length > capacity ? 'over':''}">${allNames.length}/${capacity} seated</div>
-        <ul>${allNames.map(n=>`<li>${n.name}${sidePillHtml(n.side, 'mini-side-pill')}</li>`).join('')}</ul>
+        <ul>${allNames.map(n=>`<li>${n}</li>`).join('')}</ul>
       `;
     } else {
       card.innerHTML = `
@@ -351,7 +350,7 @@ function renderSeating(){
           <div class="merged-sub">
             <div class="t-num sub">${getTableLabel(n) || ('Table ' + n)}</div>
             ${getTableLabel(n) ? `<div class="t-subnum">Table ${n}</div>` : ''}
-            <ul>${(byTable[n]||[]).map(nm=>`<li>${nm.name}${sidePillHtml(nm.side, 'mini-side-pill')}</li>`).join('') || '<li style="opacity:0.5;">No guests yet</li>'}</ul>
+            <ul>${(byTable[n]||[]).map(nm=>`<li>${nm}</li>`).join('') || '<li style="opacity:0.5;">No guests yet</li>'}</ul>
           </div>
         `).join('')}
       `;
@@ -361,7 +360,7 @@ function renderSeating(){
   if(unassigned.length){
     const card = document.createElement('div');
     card.className = 'table-card unassigned-card';
-    card.innerHTML = `<div class="t-num">Unassigned</div><ul>${unassigned.map(n=>`<li>${n.name}${sidePillHtml(n.side, 'mini-side-pill')}</li>`).join('')}</ul>`;
+    card.innerHTML = `<div class="t-num">Unassigned</div><ul>${unassigned.map(n=>`<li>${n}</li>`).join('')}</ul>`;
     grid.appendChild(card);
   }
 }
