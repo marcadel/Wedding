@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nancy & Marc — Find Your Table</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --ink:#332C40;
+    --forest:#4B3F5E;
+    --forest-2:#6B5A82;
+    --ivory:#EBE5D9;
+    --ivory-2:#DDD5C4;
+    --gold:#9E83B8;
+    --gold-light:#CCBBDB;
+    --cream:#F7F4EC;
+    --line: rgba(158,131,184,0.35);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--ivory);
+    color:var(--ink);
+    font-family:'EB Garamond', serif;
+    font-size:16px;
+  }
+
+  /* ---------- GATE ---------- */
+  #gate{
+    position:fixed; inset:0;
+    background:linear-gradient(160deg, var(--ink) 0%, var(--forest) 55%, var(--forest-2) 100%);
+    display:flex; align-items:center; justify-content:center;
+    z-index:10;
+  }
+  #gate.hidden{display:none;}
+  .gate-box{ text-align:center; color:var(--cream); padding:20px; }
+  .gate-box h1{
+    font-family:'Cormorant Garamond', serif; font-weight:500; font-size:34px; margin:0 0 6px;
+  }
+  .gate-box p{color:var(--ivory-2); margin:0 0 22px; font-size:14px;}
+  .gate-box input{
+    background:transparent; border:1px solid rgba(251,246,234,0.35); color:var(--cream);
+    padding:12px 16px; font-family:'Jost',sans-serif; font-size:15px;
+    text-align:center; letter-spacing:0.1em; width:220px;
+  }
+  .gate-box button{
+    display:block; margin:16px auto 0; background:var(--gold); border:none; color:var(--ink);
+    padding:12px 30px; font-family:'Jost',sans-serif; font-size:12px;
+    letter-spacing:0.1em; text-transform:uppercase; cursor:pointer;
+  }
+  .gate-error{color:#e2a3a3; font-size:13px; margin-top:12px; font-family:'Jost',sans-serif; min-height:16px;}
+
+  /* ---------- LAYOUT ---------- */
+  #app{display:none; max-width:720px; margin:0 auto; padding:28px 18px 70px;}
+  #app.show{display:block;}
+  header.top{
+    display:flex; justify-content:space-between; align-items:baseline;
+    margin-bottom:6px; flex-wrap:wrap; gap:10px;
+  }
+  header.top h1{
+    font-family:'Cormorant Garamond', serif; font-weight:600; font-size:26px; margin:0; color:var(--forest);
+  }
+  .refresh-btn{
+    background:none; border:1px solid var(--gold); color:var(--gold);
+    padding:8px 14px; font-family:'Jost',sans-serif; font-size:11px;
+    letter-spacing:0.06em; text-transform:uppercase; cursor:pointer;
+    transition:background 0.15s ease, color 0.15s ease;
+  }
+  .refresh-btn:hover{background:var(--gold); color:var(--cream);}
+  .last-updated{ font-family:'Jost',sans-serif; font-size:11px; color:#7a7268; margin:0 0 20px; }
+
+  /* ---------- SEARCH ---------- */
+  .search-box{
+    background:var(--cream); border:1px solid var(--line);
+    padding:18px; margin-bottom:18px; box-shadow:0 10px 26px -18px rgba(51,44,64,0.45);
+  }
+  .search-box label{
+    display:block; font-family:'Jost',sans-serif; font-size:11px; text-transform:uppercase;
+    letter-spacing:0.08em; color:var(--gold); margin-bottom:8px;
+  }
+  .search-box input{
+    width:100%; padding:14px 16px; font-family:'EB Garamond',serif; font-size:19px;
+    border:1px solid var(--line); background:#fff;
+  }
+  .search-results{ margin-top:14px; }
+  .search-hint{ font-family:'Jost',sans-serif; font-size:13px; color:#7a7268; margin-top:14px; }
+  .result-card{
+    border:1px solid var(--line); background:#fff; padding:16px 18px; margin-bottom:10px;
+  }
+  .result-name{
+    font-family:'Cormorant Garamond', serif; font-size:22px; font-weight:600; color:var(--forest);
+    margin-bottom:4px;
+  }
+  .result-sub{ font-family:'Jost',sans-serif; font-size:12.5px; color:#7a7268; margin-bottom:12px; }
+  .result-table{
+    display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;
+  }
+  .result-table .big-num{
+    font-family:'Cormorant Garamond', serif; font-weight:700; font-size:42px; color:var(--gold);
+    line-height:1;
+  }
+  .result-table .table-label{ font-family:'Jost',sans-serif; font-size:14px; color:var(--ink); }
+  .result-table .merge-note{ font-family:'Jost',sans-serif; font-size:12px; color:#7a7268; }
+  .result-none{
+    font-family:'Jost',sans-serif; font-size:13px; color:#a83a3a; margin-top:4px;
+  }
+  .pill{
+    display:inline-flex; align-items:center; gap:5px;
+    padding:3px 10px; border-radius:20px; font-size:11px;
+    font-family:'Jost',sans-serif; letter-spacing:0.03em; font-weight:500;
+  }
+  .pill.no{background:#e9dede; color:#7a4b4b;}
+  .pill.muted{background:rgba(51,44,64,0.06); color:var(--ink); opacity:0.7;}
+
+  /* ---------- section heads ---------- */
+  h2.section-head{
+    display:flex; align-items:center; gap:8px;
+    font-family:'Cormorant Garamond', serif; font-weight:600;
+    font-size:22px; color:var(--forest); margin:28px 0 14px;
+    border-bottom:1px solid var(--line); padding-bottom:8px;
+  }
+  h2.section-head svg{ width:16px; height:16px; flex:none; color:var(--gold); }
+
+  /* ---------- seating chart (read-only) ---------- */
+  .seating-grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(165px,1fr));
+    gap:12px;
+  }
+  .table-card{ background:var(--cream); border:1px solid var(--line); padding:14px; }
+  .table-card .t-num{
+    font-family:'Cormorant Garamond', serif; font-size:19px; font-weight:600; color:var(--gold); margin-bottom:2px;
+  }
+  .table-card .t-num.sub{ font-size:15px; }
+  .table-card .t-subnum{ font-family:'Jost',sans-serif; font-size:10.5px; color:#7a7268; margin-bottom:6px; }
+  .table-card .t-capacity{ font-family:'Jost',sans-serif; font-size:11px; color:#7a7268; margin-bottom:6px; }
+  .table-card .t-capacity.over{ color:#a83a3a; font-weight:600; }
+  .table-card ul{ margin:0; padding-left:16px; font-size:13px; }
+  .unassigned-card{ border-color:#c98a8a; }
+  .unassigned-card .t-num{ color:#b0645f; }
+  .merged-sub{ margin-top:8px; }
+  .merged-sub:first-of-type{ margin-top:0; }
+  .merged-sub + .merged-sub{ padding-top:8px; border-top:1px dashed var(--line); }
+  .merged-card > .t-capacity{ padding-bottom:8px; border-bottom:1px solid var(--line); margin-bottom:8px; }
+  .loading-note{ font-family:'Jost',sans-serif; font-size:13px; color:#7a7268; padding:16px 0; }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gate-box">
+    <h1>Nancy &amp; Marc</h1>
+    <p>Entrance — enter passcode</p>
+    <input type="password" id="passcode-input" placeholder="Passcode" autocomplete="off">
+    <div class="gate-error" id="gate-error"></div>
+    <button id="gate-submit">Enter</button>
+  </div>
+</div>
+
+<div id="app">
+  <header class="top">
+    <h1>Find Your Table</h1>
+    <button class="refresh-btn" id="refresh-btn">Refresh</button>
+  </header>
+  <p class="last-updated" id="last-updated"></p>
+
+  <div class="search-box">
+    <label for="search-input">Guest name</label>
+    <input type="text" id="search-input" placeholder="Start typing a guest's name…" autocomplete="off">
+    <div class="search-results" id="search-results"></div>
+  </div>
+
+  <h2 class="section-head" id="head-seating"></h2>
+  <div class="seating-grid" id="seating-grid">
+    <div class="loading-note">Loading…</div>
+  </div>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyCtiGIjE_avSstphgp7uo8XX2A4bPMHw3g",
+  authDomain: "nancy-marc-wedding.firebaseapp.com",
+  projectId: "nancy-marc-wedding",
+  storageBucket: "nancy-marc-wedding.firebasestorage.app",
+  messagingSenderId: "390527284227",
+  appId: "1:390527284227:web:51f20657d4e95c2be08a36"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const COLLECTION = 'wedding_data';
+
+// Separate, lower-privilege passcode from the couple's dashboard (admin.html)
+// — this page is read-only, but still gated since it shows the full guest
+// list and seating chart. Change this before sharing the link with ushers.
+const PASSCODE = 'WELCOME2026';
+
+const TABLE_CAPACITY = 10;
+let allEntries = [];
+let tableConfig = { labels: {}, merges: [] };
+
+function slugify(name){
+  return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+}
+
+const ICONS = {
+  grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>'
+};
+document.getElementById('head-seating').innerHTML = ICONS.grid + ' All Tables';
+
+document.getElementById('gate-submit').addEventListener('click', tryEnter);
+document.getElementById('passcode-input').addEventListener('keydown', e=>{ if(e.key==='Enter') tryEnter(); });
+function tryEnter(){
+  const val = document.getElementById('passcode-input').value;
+  if(val === PASSCODE){
+    document.getElementById('gate').classList.add('hidden');
+    document.getElementById('app').classList.add('show');
+    loadData();
+  } else {
+    document.getElementById('gate-error').textContent = 'Incorrect passcode.';
+  }
+}
+
+document.getElementById('refresh-btn').addEventListener('click', loadData);
+document.getElementById('search-input').addEventListener('input', renderResults);
+
+async function loadData(){
+  document.getElementById('seating-grid').innerHTML = '<div class="loading-note">Loading…</div>';
+  try{
+    const snap = await db.collection(COLLECTION).get();
+    allEntries = [];
+    tableConfig = { labels: {}, merges: [] };
+    snap.forEach(doc=>{
+      if(doc.id === 'table_config'){
+        try{
+          const raw = doc.data();
+          const parsed = typeof raw.value === 'string' ? JSON.parse(raw.value) : raw;
+          if(parsed){ tableConfig = { labels: parsed.labels || {}, merges: parsed.merges || [] }; }
+        }catch(_){ /* skip malformed config */ }
+      } else if(doc.id.startsWith('rsvp:')){
+        try{
+          const raw = doc.data();
+          const parsed = typeof raw.value === 'string' ? JSON.parse(raw.value) : raw;
+          if(parsed && typeof parsed.name === 'string'){
+            allEntries.push({ key: doc.id, data: parsed });
+          }
+        }catch(_){ /* skip malformed entry */ }
+      }
+    });
+    allEntries.sort((a,b)=> a.data.name.localeCompare(b.data.name));
+    document.getElementById('last-updated').textContent =
+      'Updated ' + new Date().toLocaleTimeString('en-GB', { timeZone:'Africa/Cairo', hour:'2-digit', minute:'2-digit' }) + ' (Cairo)';
+    renderSeating();
+    renderResults();
+  }catch(err){
+    document.getElementById('seating-grid').innerHTML = '<div class="loading-note">Could not load — check your connection and tap Refresh.</div>';
+    console.error(err);
+  }
+}
+
+// ---------- table merging, labels & capacity (read-only mirror of admin.html) ----------
+function getMergeGroup(tableNum){
+  const n = Number(tableNum);
+  for(const pair of tableConfig.merges){
+    if(pair.includes(n)) return pair.slice().sort((a,b)=>a-b);
+  }
+  return [n];
+}
+function getTableCapacity(tableNum){
+  return getMergeGroup(tableNum).length * TABLE_CAPACITY;
+}
+function getTableLabel(tableNum){
+  return tableConfig.labels[tableNum] || tableConfig.labels[String(tableNum)] || '';
+}
+
+function renderSeating(){
+  const grid = document.getElementById('seating-grid');
+  grid.innerHTML = '';
+  const attending = allEntries.filter(e=>e.data.attending==='yes');
+  const byTable = {};
+  const unassigned = [];
+  attending.forEach(({data})=>{
+    const names = [data.name].concat(data.plusOne==='yes' ? [data.plusOneName || 'Guest'] : []);
+    if(data.tableNumber){
+      byTable[data.tableNumber] = (byTable[data.tableNumber] || []).concat(names);
+    } else {
+      unassigned.push(...names);
+    }
+  });
+  const tableNums = Object.keys(byTable).map(Number).sort((a,b)=>a-b);
+  if(tableNums.length === 0 && unassigned.length === 0){
+    grid.innerHTML = '<div class="loading-note">No tables assigned yet.</div>';
+    return;
+  }
+  const renderedGroups = new Set();
+  tableNums.forEach(num=>{
+    const group = getMergeGroup(num);
+    const groupKey = group.join(',');
+    if(renderedGroups.has(groupKey)) return;
+    renderedGroups.add(groupKey);
+
+    const allNames = group.reduce((acc,n)=> acc.concat(byTable[n] || []), []);
+    const capacity = group.length * TABLE_CAPACITY;
+    const isSingle = group.length === 1;
+
+    const card = document.createElement('div');
+    card.className = 'table-card' + (isSingle ? '' : ' merged-card');
+
+    if(isSingle){
+      const label = getTableLabel(group[0]);
+      const plainTitle = `Table ${group[0]}`;
+      card.innerHTML = `
+        <div class="t-num">${label || plainTitle}</div>
+        ${label ? `<div class="t-subnum">${plainTitle}</div>` : ''}
+        <div class="t-capacity ${allNames.length > capacity ? 'over':''}">${allNames.length}/${capacity} seated</div>
+        <ul>${allNames.map(n=>`<li>${n}</li>`).join('')}</ul>
+      `;
+    } else {
+      card.innerHTML = `
+        <div class="t-num">Table ${group.join(' + ')}</div>
+        <div class="t-capacity ${allNames.length > capacity ? 'over':''}">${allNames.length}/${capacity} seated</div>
+        ${group.map(n => `
+          <div class="merged-sub">
+            <div class="t-num sub">${getTableLabel(n) || ('Table ' + n)}</div>
+            ${getTableLabel(n) ? `<div class="t-subnum">Table ${n}</div>` : ''}
+            <ul>${(byTable[n]||[]).map(nm=>`<li>${nm}</li>`).join('') || '<li style="opacity:0.5;">No guests yet</li>'}</ul>
+          </div>
+        `).join('')}
+      `;
+    }
+    grid.appendChild(card);
+  });
+  if(unassigned.length){
+    const card = document.createElement('div');
+    card.className = 'table-card unassigned-card';
+    card.innerHTML = `<div class="t-num">Unassigned</div><ul>${unassigned.map(n=>`<li>${n}</li>`).join('')}</ul>`;
+    grid.appendChild(card);
+  }
+}
+
+// ---------- search ----------
+function renderResults(){
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  const resultsEl = document.getElementById('search-results');
+  if(!q){ resultsEl.innerHTML = ''; return; }
+
+  // Matches either the guest's own name or their +1's name, so someone
+  // arriving as a plus-one can still be looked up directly by their own name.
+  const matches = allEntries.filter(({data})=>
+    data.name.toLowerCase().includes(q) ||
+    (data.plusOneName && data.plusOneName.toLowerCase().includes(q))
+  );
+
+  if(matches.length === 0){
+    resultsEl.innerHTML = '<div class="search-hint">No guest found with that name. Check the spelling, or try just a first or last name.</div>';
+    return;
+  }
+
+  resultsEl.innerHTML = matches.map(({data})=>{
+    const matchedViaPlusOne = !data.name.toLowerCase().includes(q) &&
+      data.plusOneName && data.plusOneName.toLowerCase().includes(q);
+    const displayName = matchedViaPlusOne ? data.plusOneName : data.name;
+    const subLine = matchedViaPlusOne
+      ? `Arriving with ${data.name}`
+      : (data.plusOne==='yes' ? `+1: ${data.plusOneName || 'Guest'}` : '');
+
+    if(data.attending !== 'yes'){
+      return `<div class="result-card">
+        <div class="result-name">${displayName}</div>
+        <span class="pill no">Not on the attending list</span>
+      </div>`;
+    }
+    if(!data.tableNumber){
+      return `<div class="result-card">
+        <div class="result-name">${displayName}</div>
+        ${subLine ? `<div class="result-sub">${subLine}</div>` : ''}
+        <div class="result-none">No table assigned yet — please check with the couple.</div>
+      </div>`;
+    }
+    const group = getMergeGroup(data.tableNumber);
+    const label = getTableLabel(data.tableNumber);
+    const mergeNote = group.length > 1
+      ? `Shares Table ${group.join(' + ')}`
+      : '';
+    return `<div class="result-card">
+      <div class="result-name">${displayName}</div>
+      ${subLine ? `<div class="result-sub">${subLine}</div>` : ''}
+      <div class="result-table">
+        <span class="big-num">${data.tableNumber}</span>
+        ${label ? `<span class="table-label">${label}</span>` : ''}
+        ${mergeNote ? `<span class="merge-note">${mergeNote}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+</script>
+</body>
+</html>
