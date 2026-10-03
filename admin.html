@@ -272,8 +272,9 @@
   table.guest-table button.save-row:hover:not(:disabled){background:var(--gold); color:var(--cream);}
   table.guest-table button.save-row:disabled{ opacity:0.45; cursor:default; }
   .side-select, .category-select, .table-select, .plusone-select, .plusone-name{
-    display:block; width:100%; font-family:'Jost',sans-serif; font-size:12px;
+    display:block; width:100%; min-width:120px; font-family:'Jost',sans-serif; font-size:12px;
     border:1px solid var(--line); background:var(--cream); padding:5px 6px;
+    box-sizing:border-box;
   }
   .plusone-name{ margin-top:4px; }
   .table-select:disabled{
