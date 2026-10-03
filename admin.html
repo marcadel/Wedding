@@ -393,6 +393,22 @@
   .bulk-bar button:hover:not(:disabled){ background:var(--cream); color:var(--forest); }
   .bulk-bar button:disabled{ opacity:0.6; cursor:default; }
   .bulk-bar .bulk-count{ font-weight:600; }
+  .bulk-bar input[type=text]{
+    padding:7px 10px; font-family:'Jost',sans-serif; font-size:12.5px;
+    border:1px solid var(--cream); background:var(--cream); color:var(--ink);
+    width:150px;
+  }
+
+  /* ---------- FAMILIES ---------- */
+  .family-pill{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:12px; font-family:'Jost',sans-serif;
+  }
+  .remove-family-row{
+    background:none; border:none; color:#b0645f; opacity:0.65; cursor:pointer;
+    font-size:12px; padding:2px; line-height:1;
+  }
+  .remove-family-row:hover{ opacity:1; }
 </style>
 </head>
 <body>
@@ -446,6 +462,12 @@
     <div id="merge-list"><div class="merge-empty">Loading…</div></div>
   </div>
 
+  <h2 class="section-head" id="head-families"></h2>
+  <div class="merge-panel">
+    <div class="merge-empty" style="margin-bottom:10px;">Check guests in the list below, type a family name, and use "Create Family" in the bar at the bottom — this seats them together and lets ushers look everyone up by just the family or father's name.</div>
+    <div id="family-list"><div class="merge-empty">Loading…</div></div>
+  </div>
+
   <h2 class="section-head" id="head-list"></h2>
   <div class="search-row">
     <input type="text" id="search-input" placeholder="Search by name…">
@@ -497,6 +519,8 @@
   <span><span class="bulk-count" id="bulkCount">0</span> selected</span>
   <select id="bulkTableSelect"><option value="">Choose table…</option></select>
   <button id="bulkAssignBtn" type="button">Assign Table</button>
+  <input type="text" id="bulkFamilyName" placeholder="Family name…" autocomplete="off">
+  <button id="bulkFamilyBtn" type="button">Create Family</button>
   <button id="bulkClearBtn" type="button">Clear</button>
 </div>
 
@@ -602,6 +626,7 @@ document.getElementById('icon-unseated').innerHTML = ICONS.clock;
 document.getElementById('head-chart').innerHTML = ICONS.seat + ' Guests Seated';
 document.getElementById('head-seating').innerHTML = ICONS.grid + ' Seating Chart';
 document.getElementById('head-merge').innerHTML = ICONS.link + ' Merge Tables';
+document.getElementById('head-families').innerHTML = ICONS.users + ' Families';
 document.getElementById('head-list').innerHTML = ICONS.list + ' Guest List';
 
 document.getElementById('gate-submit').addEventListener('click', tryEnter);
@@ -665,6 +690,7 @@ async function loadData(){
     refreshTableSelectOptions();
     populateMergeSelects();
     renderMergeList();
+    renderFamilyList();
     renderTable();
   }catch(err){
     document.getElementById('table-wrap').innerHTML = '<div class="loading-note">Could not load data — check your connection.</div>';
@@ -963,6 +989,121 @@ function renderMergeList(){
   });
 }
 
+// ---------- FAMILIES ----------
+// A "family" is just a shared familyName tag written onto each member's own
+// RSVP record (no separate collection) — grouping them so ushers can look
+// the whole party up by one name instead of saying every guest individually.
+function getFamilyGroups(){
+  const map = {};
+  allEntries.forEach(({key, data})=>{
+    if(data.familyName){
+      if(!map[data.familyName]) map[data.familyName] = [];
+      map[data.familyName].push({key, data});
+    }
+  });
+  return map;
+}
+
+function renderFamilyList(){
+  const listEl = document.getElementById('family-list');
+  const groups = getFamilyGroups();
+  const names = Object.keys(groups).sort((a,b)=>a.localeCompare(b));
+  if(names.length === 0){
+    listEl.innerHTML = '<div class="merge-empty">No families created yet.</div>';
+    return;
+  }
+  listEl.innerHTML = names.map(fam=>{
+    const members = groups[fam];
+    const tableNums = [...new Set(members.filter(m=>m.data.tableNumber).map(m=>Number(m.data.tableNumber)))];
+    const tableText = tableNums.length === 0 ? 'no table yet'
+      : tableNums.length === 1 ? `Table ${tableNums[0]}`
+      : `split across tables ${tableNums.join(', ')}`;
+    const memberNames = members.map(m => m.data.name).join(', ');
+    return `<div class="merge-item">
+      <span><b>${fam}</b> — ${memberNames} <span style="opacity:0.6;">(${tableText})</span></span>
+      <button class="remove-family-btn" data-fam="${encodeURIComponent(fam)}" type="button">Remove Family</button>
+    </div>`;
+  }).join('');
+  listEl.querySelectorAll('.remove-family-btn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const fam = decodeURIComponent(btn.dataset.fam);
+      const ok = window.confirm(`Remove the "${fam}" family grouping? This only clears the family tag — everyone's table assignment stays as it is.`);
+      if(!ok) return;
+      btn.disabled = true;
+      const members = groups[fam];
+      try{
+        await Promise.all(members.map(({key, data})=>{
+          data.familyName = '';
+          return db.collection(COLLECTION).doc(key).set({
+            value: JSON.stringify(data), shared: true, updatedAt: Date.now()
+          });
+        }));
+        renderFamilyList();
+        renderTable();
+      }catch(err){
+        alert('Could not remove that family — please check your connection and try again.');
+        console.error(err);
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+document.getElementById('bulkFamilyBtn').addEventListener('click', async ()=>{
+  const famInput = document.getElementById('bulkFamilyName');
+  const famName = famInput.value.trim();
+  if(!famName){ alert('Enter a family name first (e.g. "Adel Family" or the father\'s name).'); return; }
+  const targets = allEntries.filter(e => selectedKeys.has(e.key));
+  if(targets.length === 0){ alert('Check at least one guest in the list first.'); return; }
+  const targetKeys = new Set(targets.map(e=>e.key));
+
+  const tableVal = parseInt(document.getElementById('bulkTableSelect').value, 10) || null;
+  if(tableVal){
+    const capacity = getTableCapacity(tableVal);
+    const group = getMergeGroup(tableVal);
+    let existingOthers = 0;
+    allEntries.forEach(({key, data})=>{
+      if(targetKeys.has(key)) return;
+      if(data.attending==='yes' && data.tableNumber && group.includes(Number(data.tableNumber))){
+        existingOthers += 1 + (data.plusOne==='yes' ? 1 : 0);
+      }
+    });
+    let newHeadcount = 0;
+    targets.forEach(({data})=>{ newHeadcount += 1 + (data.attending==='yes' && data.plusOne==='yes' ? 1 : 0); });
+    if(existingOthers + newHeadcount > capacity){
+      alert(`Seating these ${targets.length} selected guest(s) together at Table ${tableVal} would total ${existingOthers + newHeadcount} guests, but it only seats ${capacity}. Choose fewer guests, a different table, or merge tables first.`);
+      return;
+    }
+  }
+
+  const btn = document.getElementById('bulkFamilyBtn');
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+  try{
+    await Promise.all(targets.map(({key, data})=>{
+      data.familyName = famName;
+      if(tableVal){ data.tableNumber = tableVal; dirtyKeys.delete(key); }
+      return db.collection(COLLECTION).doc(key).set({
+        value: JSON.stringify(data), shared: true, updatedAt: Date.now()
+      });
+    }));
+    selectedKeys.clear();
+    famInput.value = '';
+    updateSaveAllButton();
+    renderStats();
+    renderChart();
+    renderSeating();
+    renderFamilyList();
+    renderTable();
+  }catch(err){
+    alert('Something went wrong creating the family — please check your connection and try again.');
+    console.error(err);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Create Family';
+  }
+});
+
 document.getElementById('mergeBtn').addEventListener('click', async ()=>{
   const a = parseInt(document.getElementById('mergeTableA').value, 10);
   const b = parseInt(document.getElementById('mergeTableB').value, 10);
@@ -995,6 +1136,7 @@ function updateBulkBar(){
 
 document.getElementById('bulkClearBtn').addEventListener('click', ()=>{
   selectedKeys.clear();
+  document.getElementById('bulkFamilyName').value = '';
   renderTable();
 });
 
@@ -1155,7 +1297,9 @@ function renderTable(){
   const q = document.getElementById('search-input').value.trim().toLowerCase();
   const relFilter = document.getElementById('relation-filter').value;
   const filtered = allEntries.filter(e=>{
-    if(!e.data.name.toLowerCase().includes(q)) return false;
+    const matchesSearch = e.data.name.toLowerCase().includes(q) ||
+      (e.data.familyName || '').toLowerCase().includes(q);
+    if(!matchesSearch) return false;
     if(!relFilter) return true;
     if(relFilter === 'none') return !e.data.side;
     if(relFilter.indexOf('side:') === 0) return e.data.side === relFilter.slice(5);
@@ -1178,6 +1322,7 @@ function renderTable(){
     name:      (e) => e.data.name.toLowerCase(),
     status:    (e) => e.data.attending === 'yes' ? 0 : 1,
     table:     (e) => e.data.tableNumber || 9999,
+    family:    (e) => (e.data.familyName || '').toLowerCase(),
     submitted: (e) => e.data.submittedAtMs || 0
   };
   const sortFn = sorters[sortState.key] || sorters.name;
@@ -1203,6 +1348,7 @@ function renderTable(){
     <th class="sortable ${activeCls('submitted')}" data-sort="submitted">Submitted <span class="sort-arrow">${arrow('submitted')}</span></th>
     <th>Relation</th>
     <th class="sortable ${activeCls('table')}" data-sort="table">Table <span class="sort-arrow">${arrow('table')}</span></th>
+    <th class="sortable ${activeCls('family')}" data-sort="family">Family <span class="sort-arrow">${arrow('family')}</span></th>
     <th>Song Request</th>
     <th></th><th></th>
   </tr></thead><tbody></tbody>`;
@@ -1257,6 +1403,9 @@ function renderTable(){
         <select class="category-select" style="margin-top:4px;"><option value="">—</option></select>
       </td>
       <td><select class="table-select" ${(data.attending!=='yes' || !currentSide) ? 'disabled':''}></select></td>
+      <td>${data.familyName
+        ? `<span class="family-pill">${data.familyName}<button class="remove-family-row" title="Remove from family">✕</button></span>`
+        : '<span class="pill muted">—</span>'}</td>
       <td>${songCell}</td>
       <td><button class="save-row" ${data.attending!=='yes' ? 'disabled':''}>Save</button></td>
       <td><button class="delete-row" title="Delete this RSVP">🗑</button></td>
@@ -1269,6 +1418,28 @@ function renderTable(){
     const plusOneSelect = tr.querySelector('.plusone-select');
     const plusOneNameInput = tr.querySelector('.plusone-name');
     const rowCheckbox = tr.querySelector('.row-checkbox');
+    const removeFamilyBtn = tr.querySelector('.remove-family-row');
+    if(removeFamilyBtn){
+      removeFamilyBtn.addEventListener('click', async ()=>{
+        const ok = window.confirm(`Remove ${data.name} from the "${data.familyName}" family? (Their table stays the same.)`);
+        if(!ok) return;
+        const prevFamily = data.familyName;
+        data.familyName = '';
+        removeFamilyBtn.disabled = true;
+        try{
+          await db.collection(COLLECTION).doc(key).set({
+            value: JSON.stringify(data), shared: true, updatedAt: Date.now()
+          });
+          renderFamilyList();
+          renderTable();
+        }catch(err){
+          data.familyName = prevFamily;
+          alert('Could not update — please check your connection and try again.');
+          console.error(err);
+          removeFamilyBtn.disabled = false;
+        }
+      });
+    }
     if(dirtyKeys.has(key)) btn.classList.add('dirty');
     plusOneSelect.addEventListener('change', ()=>{
       const newVal = plusOneSelect.value;

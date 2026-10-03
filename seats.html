@@ -129,6 +129,24 @@
   }
   .mini-side-pill.side-marc{ background:rgba(75,63,94,0.12); color:var(--forest); }
   .mini-side-pill.side-nancy{ background:rgba(158,131,184,0.22); color:var(--gold); }
+  .checkin-count{ font-family:'Jost',sans-serif; font-size:12.5px; color:var(--forest); font-weight:600; margin:0 0 18px; }
+  .family-card{ border-color:var(--gold); background:#fdfcf8; }
+  .checkin-section{ margin-top:14px; padding-top:12px; border-top:1px solid var(--line); }
+  .checkin-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:7px 0; font-family:'Jost',sans-serif; font-size:14.5px;
+  }
+  .checkin-row .checkin-name{ color:var(--ink); }
+  .checkin-btn{
+    font-family:'Jost',sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:0.05em;
+    padding:7px 14px; cursor:pointer; border:1px solid var(--gold); background:none; color:var(--gold);
+    transition:background 0.15s ease, color 0.15s ease; white-space:nowrap; flex:none;
+  }
+  .checkin-btn:hover:not(:disabled){ background:var(--gold); color:var(--cream); }
+  .checkin-btn.checked{ background:#4a7c59; border-color:#4a7c59; color:#fff; }
+  .checkin-btn.checked:hover:not(:disabled){ background:#3d6649; }
+  .checkin-btn:disabled{ opacity:0.6; cursor:default; }
+  .checked-badge{ color:#4a7c59; font-weight:700; margin-left:4px; }
 
   /* ---------- section heads ---------- */
   h2.section-head{
@@ -180,6 +198,7 @@
     <button class="refresh-btn" id="refresh-btn">Refresh</button>
   </header>
   <p class="last-updated" id="last-updated"></p>
+  <p class="checkin-count" id="checkin-stats"></p>
 
   <div class="search-box">
     <label for="search-input">Guest name</label>
@@ -277,6 +296,7 @@ async function loadData(){
     allEntries.sort((a,b)=> a.data.name.localeCompare(b.data.name));
     document.getElementById('last-updated').textContent =
       'Updated ' + new Date().toLocaleTimeString('en-GB', { timeZone:'Africa/Cairo', hour:'2-digit', minute:'2-digit' }) + ' (Cairo)';
+    renderCheckinStats();
     renderSeating();
     renderResults();
   }catch(err){
@@ -300,6 +320,67 @@ function getTableLabel(tableNum){
   return tableConfig.labels[tableNum] || tableConfig.labels[String(tableNum)] || '';
 }
 
+function renderCheckinStats(){
+  let total = 0, checked = 0;
+  allEntries.forEach(({data})=>{
+    if(data.attending !== 'yes') return;
+    total += 1; if(data.checkedIn) checked++;
+    if(data.plusOne === 'yes'){ total += 1; if(data.plusOneCheckedIn) checked++; }
+  });
+  document.getElementById('checkin-stats').textContent = total ? `${checked} / ${total} guests checked in` : '';
+}
+
+// Re-fetches the guest's current record right before writing, so a check-in
+// tap never clobbers an edit the couple or another usher made in the meantime —
+// this page only ever touches the two checked-in fields, never the rest.
+async function setCheckedIn(key, field, value){
+  try{
+    const doc = await db.collection(COLLECTION).doc(key).get();
+    if(!doc.exists) return false;
+    const raw = doc.data();
+    const parsed = typeof raw.value === 'string' ? JSON.parse(raw.value) : raw;
+    parsed[field] = value;
+    if(value){ parsed[field + 'At'] = Date.now(); } else { delete parsed[field + 'At']; }
+    await db.collection(COLLECTION).doc(key).set({
+      value: JSON.stringify(parsed), shared: true, updatedAt: Date.now()
+    });
+    const entry = allEntries.find(e => e.key === key);
+    if(entry) entry.data = parsed;
+    return true;
+  }catch(err){
+    console.error(err);
+    return false;
+  }
+}
+
+function checkinButtonHtml(key, field, isChecked){
+  return `<button class="checkin-btn ${isChecked ? 'checked':''}" data-key="${key}" data-field="${field}" data-checked="${isChecked ? '1':'0'}">${isChecked ? '✓ Arrived' : 'Mark Arrived'}</button>`;
+}
+function personRowHtml(name, key, field, isChecked, sidePill){
+  return `<div class="checkin-row"><span class="checkin-name">${name}${sidePill || ''}</span>${checkinButtonHtml(key, field, isChecked)}</div>`;
+}
+
+document.getElementById('search-results').addEventListener('click', async (e)=>{
+  const btn = e.target.closest('.checkin-btn');
+  if(!btn) return;
+  const key = btn.dataset.key;
+  const field = btn.dataset.field;
+  const newVal = btn.dataset.checked !== '1';
+  const prevLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '…';
+  const ok = await setCheckedIn(key, field, newVal);
+  if(ok){
+    renderCheckinStats();
+    renderResults();
+    renderSeating();
+  } else {
+    btn.disabled = false;
+    btn.textContent = prevLabel;
+    alert('Could not update arrival status — please check your connection and try again.');
+  }
+});
+
 function renderSeating(){
   const grid = document.getElementById('seating-grid');
   grid.innerHTML = '';
@@ -307,7 +388,12 @@ function renderSeating(){
   const byTable = {};
   const unassigned = [];
   attending.forEach(({data})=>{
-    const names = [data.name].concat(data.plusOne==='yes' ? [data.plusOneName || 'Guest'] : []);
+    const primaryName = data.checkedIn ? `${data.name}<span class="checked-badge">✓</span>` : data.name;
+    const names = [primaryName];
+    if(data.plusOne === 'yes'){
+      const plusName = data.plusOneName || 'Guest';
+      names.push(data.plusOneCheckedIn ? `${plusName}<span class="checked-badge">✓</span>` : plusName);
+    }
     if(data.tableNumber){
       byTable[data.tableNumber] = (byTable[data.tableNumber] || []).concat(names);
     } else {
@@ -365,25 +451,86 @@ function renderSeating(){
   }
 }
 
+// ---------- families ----------
+// A family is just a shared familyName tag on each member's own RSVP record
+// (written from the couple's dashboard), so ushers can look up a whole party
+// by the family or father's name instead of needing every individual name.
+function getFamilyGroups(){
+  const map = {};
+  allEntries.forEach(({key, data})=>{
+    if(data.familyName){
+      if(!map[data.familyName]) map[data.familyName] = [];
+      map[data.familyName].push({key, data});
+    }
+  });
+  return map;
+}
+
+function familyCardHtml(famName, members){
+  const attendingMembers = members.filter(m => m.data.attending === 'yes');
+  if(attendingMembers.length === 0){
+    return `<div class="result-card family-card">
+      <div class="result-name">${famName} <span class="pill muted">Family</span></div>
+      <span class="pill no">Not on the attending list</span>
+    </div>`;
+  }
+  const tableNums = [...new Set(attendingMembers.filter(m=>m.data.tableNumber).map(m=>Number(m.data.tableNumber)))];
+  let tableBlock;
+  if(tableNums.length === 0){
+    tableBlock = `<div class="result-none">No table assigned yet — please check with the couple.</div>`;
+  } else {
+    const mainTable = tableNums[0];
+    const group = getMergeGroup(mainTable);
+    const label = getTableLabel(mainTable);
+    const mergeNote = group.length > 1 ? `Shares Table ${group.join(' + ')}` : '';
+    const splitNote = tableNums.length > 1 ? `<span class="merge-note">Split across tables ${tableNums.join(', ')}</span>` : '';
+    tableBlock = `<div class="result-table">
+      <span class="big-num">${mainTable}</span>
+      ${label ? `<span class="table-label">${label}</span>` : ''}
+      ${mergeNote ? `<span class="merge-note">${mergeNote}</span>` : ''}
+      ${splitNote}
+    </div>`;
+  }
+  const checkinRows = attendingMembers.map(({key, data}) => `
+    ${personRowHtml(data.name, key, 'checkedIn', !!data.checkedIn, sidePillHtml(data.side, 'side-pill'))}
+    ${data.plusOne === 'yes' ? personRowHtml(data.plusOneName || 'Guest', key, 'plusOneCheckedIn', !!data.plusOneCheckedIn) : ''}
+  `).join('');
+  return `<div class="result-card family-card">
+    <div class="result-name">${famName} <span class="pill muted">Family</span></div>
+    ${tableBlock}
+    <div class="checkin-section">${checkinRows}</div>
+  </div>`;
+}
+
 // ---------- search ----------
 function renderResults(){
   const q = document.getElementById('search-input').value.trim().toLowerCase();
   const resultsEl = document.getElementById('search-results');
   if(!q){ resultsEl.innerHTML = ''; return; }
 
+  const familyMap = getFamilyGroups();
+  const matchedFamilyNames = Object.keys(familyMap).filter(fam => fam.toLowerCase().includes(q));
+  const matchedFamilyKeys = new Set();
+  matchedFamilyNames.forEach(fam => familyMap[fam].forEach(({key}) => matchedFamilyKeys.add(key)));
+
   // Matches either the guest's own name or their +1's name, so someone
   // arriving as a plus-one can still be looked up directly by their own name.
-  const matches = allEntries.filter(({data})=>
-    data.name.toLowerCase().includes(q) ||
-    (data.plusOneName && data.plusOneName.toLowerCase().includes(q))
+  // Anyone already shown as part of a matched family isn't repeated below.
+  const matches = allEntries.filter(({key, data}) =>
+    !matchedFamilyKeys.has(key) && (
+      data.name.toLowerCase().includes(q) ||
+      (data.plusOneName && data.plusOneName.toLowerCase().includes(q))
+    )
   );
 
-  if(matches.length === 0){
-    resultsEl.innerHTML = '<div class="search-hint">No guest found with that name. Check the spelling, or try just a first or last name.</div>';
+  if(matchedFamilyNames.length === 0 && matches.length === 0){
+    resultsEl.innerHTML = '<div class="search-hint">No guest found with that name. Check the spelling, or try just a first or last name, or a family name.</div>';
     return;
   }
 
-  resultsEl.innerHTML = matches.map(({data})=>{
+  let html = matchedFamilyNames.map(fam => familyCardHtml(fam, familyMap[fam])).join('');
+
+  html += matches.map(({key, data})=>{
     const matchedViaPlusOne = !data.name.toLowerCase().includes(q) &&
       data.plusOneName && data.plusOneName.toLowerCase().includes(q);
     const displayName = matchedViaPlusOne ? data.plusOneName : data.name;
@@ -398,11 +545,18 @@ function renderResults(){
         <span class="pill no">Not on the attending list</span>
       </div>`;
     }
+
+    const checkinHtml = `<div class="checkin-section">
+      ${personRowHtml(data.name, key, 'checkedIn', !!data.checkedIn)}
+      ${data.plusOne==='yes' ? personRowHtml(data.plusOneName || 'Guest', key, 'plusOneCheckedIn', !!data.plusOneCheckedIn) : ''}
+    </div>`;
+
     if(!data.tableNumber){
       return `<div class="result-card">
         <div class="result-name">${displayName}${sidePill}</div>
         ${subLine ? `<div class="result-sub">${subLine}</div>` : ''}
         <div class="result-none">No table assigned yet — please check with the couple.</div>
+        ${checkinHtml}
       </div>`;
     }
     const group = getMergeGroup(data.tableNumber);
@@ -418,8 +572,11 @@ function renderResults(){
         ${label ? `<span class="table-label">${label}</span>` : ''}
         ${mergeNote ? `<span class="merge-note">${mergeNote}</span>` : ''}
       </div>
+      ${checkinHtml}
     </div>`;
   }).join('');
+
+  resultsEl.innerHTML = html;
 }
 </script>
 </body>
