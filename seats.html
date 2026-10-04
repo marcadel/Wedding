@@ -168,6 +168,14 @@
   }
   .table-card .t-num.sub{ font-size:15px; }
   .table-card .t-subnum{ font-family:'Jost',sans-serif; font-size:10.5px; color:#7a7268; margin-bottom:6px; }
+  .table-card .t-family{
+    font-family:'Cormorant Garamond', serif; font-weight:600; font-size:18px; color:var(--ink); margin-bottom:3px;
+  }
+  .table-card .t-tablenum{
+    font-family:'Jost',sans-serif; font-weight:700; font-size:16px; letter-spacing:0.04em;
+    text-transform:uppercase; color:var(--forest); margin-bottom:8px;
+  }
+  .table-card .t-tablenum.sub{ font-size:14px; margin-bottom:6px; }
   .table-card .t-capacity{ font-family:'Jost',sans-serif; font-size:11px; color:#7a7268; margin-bottom:6px; }
   .table-card .t-capacity.over{ color:#a83a3a; font-weight:600; }
   .table-card ul{ margin:0; padding-left:16px; font-size:13px; }
@@ -319,6 +327,9 @@ function getTableCapacity(tableNum){
 function getTableLabel(tableNum){
   return tableConfig.labels[tableNum] || tableConfig.labels[String(tableNum)] || '';
 }
+// Table numbers can legitimately be 0 (reserved for the couple's parents),
+// which is falsy in JS — never test "has a table" with `if(data.tableNumber)`.
+function hasTable(n){ return Number.isInteger(n); }
 
 function renderCheckinStats(){
   let total = 0, checked = 0;
@@ -386,6 +397,7 @@ function renderSeating(){
   grid.innerHTML = '';
   const attending = allEntries.filter(e=>e.data.attending==='yes');
   const byTable = {};
+  const familyByTable = {};
   const unassigned = [];
   attending.forEach(({data})=>{
     const primaryName = data.checkedIn ? `${data.name}<span class="checked-badge">✓</span>` : data.name;
@@ -394,12 +406,22 @@ function renderSeating(){
       const plusName = data.plusOneName || 'Guest';
       names.push(data.plusOneCheckedIn ? `${plusName}<span class="checked-badge">✓</span>` : plusName);
     }
-    if(data.tableNumber){
+    if(hasTable(data.tableNumber)){
       byTable[data.tableNumber] = (byTable[data.tableNumber] || []).concat(names);
+      if(data.familyName){
+        if(!familyByTable[data.tableNumber]) familyByTable[data.tableNumber] = new Set();
+        familyByTable[data.tableNumber].add(data.familyName);
+      }
     } else {
       unassigned.push(...names);
     }
   });
+  // Only shown when a table is made up of exactly one family — a table with
+  // guests from no family, or from more than one, just shows its number.
+  function familyHeadingFor(tableNum){
+    const set = familyByTable[tableNum];
+    return (set && set.size === 1) ? [...set][0] : '';
+  }
   const tableNums = Object.keys(byTable).map(Number).sort((a,b)=>a-b);
   if(tableNums.length === 0 && unassigned.length === 0){
     grid.innerHTML = '<div class="loading-note">No tables assigned yet.</div>';
@@ -420,11 +442,10 @@ function renderSeating(){
     card.className = 'table-card' + (isSingle ? '' : ' merged-card');
 
     if(isSingle){
-      const label = getTableLabel(group[0]);
-      const plainTitle = `Table ${group[0]}`;
+      const fam = familyHeadingFor(group[0]);
       card.innerHTML = `
-        <div class="t-num">${label || plainTitle}</div>
-        ${label ? `<div class="t-subnum">${plainTitle}</div>` : ''}
+        ${fam ? `<div class="t-family">${fam}</div>` : ''}
+        <div class="t-tablenum">Table number: ${group[0]}</div>
         <div class="t-capacity ${allNames.length > capacity ? 'over':''}">${allNames.length}/${capacity} seated</div>
         <ul>${allNames.map(n=>`<li>${n}</li>`).join('')}</ul>
       `;
@@ -432,13 +453,16 @@ function renderSeating(){
       card.innerHTML = `
         <div class="t-num">Table ${group.join(' + ')}</div>
         <div class="t-capacity ${allNames.length > capacity ? 'over':''}">${allNames.length}/${capacity} seated</div>
-        ${group.map(n => `
+        ${group.map(n => {
+          const fam = familyHeadingFor(n);
+          return `
           <div class="merged-sub">
-            <div class="t-num sub">${getTableLabel(n) || ('Table ' + n)}</div>
-            ${getTableLabel(n) ? `<div class="t-subnum">Table ${n}</div>` : ''}
+            ${fam ? `<div class="t-family">${fam}</div>` : ''}
+            <div class="t-tablenum sub">Table number: ${n}</div>
             <ul>${(byTable[n]||[]).map(nm=>`<li>${nm}</li>`).join('') || '<li style="opacity:0.5;">No guests yet</li>'}</ul>
           </div>
-        `).join('')}
+        `;
+        }).join('')}
       `;
     }
     grid.appendChild(card);
@@ -474,19 +498,17 @@ function familyCardHtml(famName, members){
       <span class="pill no">Not on the attending list</span>
     </div>`;
   }
-  const tableNums = [...new Set(attendingMembers.filter(m=>m.data.tableNumber).map(m=>Number(m.data.tableNumber)))];
+  const tableNums = [...new Set(attendingMembers.filter(m=>hasTable(m.data.tableNumber)).map(m=>Number(m.data.tableNumber)))];
   let tableBlock;
   if(tableNums.length === 0){
     tableBlock = `<div class="result-none">No table assigned yet — please check with the couple.</div>`;
   } else {
     const mainTable = tableNums[0];
     const group = getMergeGroup(mainTable);
-    const label = getTableLabel(mainTable);
     const mergeNote = group.length > 1 ? `Shares Table ${group.join(' + ')}` : '';
     const splitNote = tableNums.length > 1 ? `<span class="merge-note">Split across tables ${tableNums.join(', ')}</span>` : '';
     tableBlock = `<div class="result-table">
       <span class="big-num">${mainTable}</span>
-      ${label ? `<span class="table-label">${label}</span>` : ''}
       ${mergeNote ? `<span class="merge-note">${mergeNote}</span>` : ''}
       ${splitNote}
     </div>`;
@@ -551,7 +573,7 @@ function renderResults(){
       ${data.plusOne==='yes' ? personRowHtml(data.plusOneName || 'Guest', key, 'plusOneCheckedIn', !!data.plusOneCheckedIn) : ''}
     </div>`;
 
-    if(!data.tableNumber){
+    if(!hasTable(data.tableNumber)){
       return `<div class="result-card">
         <div class="result-name">${displayName}${sidePill}</div>
         ${subLine ? `<div class="result-sub">${subLine}</div>` : ''}
@@ -560,7 +582,6 @@ function renderResults(){
       </div>`;
     }
     const group = getMergeGroup(data.tableNumber);
-    const label = getTableLabel(data.tableNumber);
     const mergeNote = group.length > 1
       ? `Shares Table ${group.join(' + ')}`
       : '';
@@ -569,7 +590,6 @@ function renderResults(){
       ${subLine ? `<div class="result-sub">${subLine}</div>` : ''}
       <div class="result-table">
         <span class="big-num">${data.tableNumber}</span>
-        ${label ? `<span class="table-label">${label}</span>` : ''}
         ${mergeNote ? `<span class="merge-note">${mergeNote}</span>` : ''}
       </div>
       ${checkinHtml}
