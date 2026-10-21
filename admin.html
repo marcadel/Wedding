@@ -237,6 +237,28 @@
   .merge-item button:hover{ background:#c98a8a; color:#fff; }
   .merge-empty{ font-size:13px; color:#7a7268; font-family:'Jost',sans-serif; }
 
+  /* ---------- RENUMBER TABLE (list, name stays put, number is editable) ---------- */
+  .rename-row{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    padding:9px 0; border-bottom:1px solid var(--line); font-family:'Jost',sans-serif; font-size:13.5px;
+  }
+  .rename-row:last-child{ border-bottom:none; }
+  .rename-name{ flex:1; min-width:140px; color:var(--ink); }
+  .rename-noname{ opacity:0.55; font-size:12px; }
+  .rename-count{ font-size:12px; color:#7a7268; white-space:nowrap; }
+  .rename-number-input{
+    width:58px; padding:6px 8px; border:1px solid var(--line); background:#fff;
+    font-family:'Jost',sans-serif; font-size:13.5px; text-align:center;
+  }
+  .rename-apply-btn{
+    background:none; border:1px solid var(--line); color:var(--ink);
+    font-size:11px; padding:6px 12px; text-transform:uppercase; letter-spacing:0.05em;
+    cursor:pointer; transition:opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+  }
+  .rename-apply-btn.dirty{ background:var(--gold); border-color:var(--gold); color:var(--cream); }
+  .rename-apply-btn:disabled{ opacity:0.4; cursor:default; }
+  .rename-apply-btn:hover:not(:disabled){ opacity:0.85; }
+
   /* guest table */
   .search-row{ display:flex; align-items:center; gap:14px; margin-bottom:14px; flex-wrap:wrap; }
   .search-row input{
@@ -483,6 +505,12 @@
     <div id="merge-list"><div class="merge-empty">Loading…</div></div>
   </div>
 
+  <h2 class="section-head" id="head-renumber"></h2>
+  <div class="merge-panel">
+    <div class="merge-empty" style="margin-bottom:10px;">Every table name you've set stays exactly as you set it — just change the number next to it. If the new number already has guests, they're moved to "Awaiting table" instead of being lost or mixed in with the renamed table, so you can reseat them afterward.</div>
+    <div id="renumber-list"><div class="merge-empty">Loading…</div></div>
+  </div>
+
   <h2 class="section-head" id="head-families"></h2>
   <div class="merge-panel">
     <div class="merge-empty" style="margin-bottom:10px;">Check guests in the list below, type a family name, and use "Create Family" in the bar at the bottom — this seats them together and lets ushers look everyone up by just the family or father's name.</div>
@@ -671,7 +699,8 @@ const ICONS = {
   guestPlus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="17" y1="11" x2="23" y2="11"/></svg>',
   link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
   tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41L13.42 20.58a2 2 0 0 1-2.83 0L2.59 12.58A2 2 0 0 1 2 11.17V4a2 2 0 0 1 2-2h7.17a2 2 0 0 1 1.41.59l8 8a2 2 0 0 1 .01 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
-  download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'
+  download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>'
 };
 
 document.getElementById('icon-total').innerHTML = ICONS.responses;
@@ -683,6 +712,7 @@ document.getElementById('icon-unseated').innerHTML = ICONS.clock;
 document.getElementById('head-chart').innerHTML = ICONS.seat + ' Guests Seated';
 document.getElementById('head-seating').innerHTML = ICONS.grid + ' Seating Chart';
 document.getElementById('head-merge').innerHTML = ICONS.link + ' Merge Tables';
+document.getElementById('head-renumber').innerHTML = ICONS.swap + ' Renumber Table';
 document.getElementById('head-families').innerHTML = ICONS.users + ' Families';
 document.getElementById('head-relations').innerHTML = ICONS.tag + ' Relations &amp; Counts';
 document.getElementById('head-export').innerHTML = ICONS.download + ' Export Guest List';
@@ -756,6 +786,7 @@ async function loadData(){
     renderSeating();
     refreshTableSelectOptions();
     populateMergeSelects();
+    renderRenumberList();
     renderMergeList();
     renderFamilyList();
     populateRelationFilter();
@@ -914,6 +945,7 @@ function startLabelEdit(numEl, tableNum){
     saveTableConfig().then(()=>{
       renderSeating();
       populateMergeSelects();
+    renderRenumberList();
       refreshTableSelectOptions();
       renderTable();
     }).catch(err=>{
@@ -1030,6 +1062,7 @@ function refreshTableSelectOptions(){
     tableOptionsHtml(ALL_TABLES);
 }
 refreshTableSelectOptions();
+renderRenumberList();
 
 function populateMergeSelects(){
   const usedTables = new Set(tableConfig.merges.flat());
@@ -1037,6 +1070,78 @@ function populateMergeSelects(){
   const optsHtml = '<option value="">Table…</option>' + tableOptionsHtml(available);
   document.getElementById('mergeTableA').innerHTML = optsHtml;
   document.getElementById('mergeTableB').innerHTML = optsHtml;
+}
+
+// Renumbering has no "already used" restriction like merging does — any table
+// (including the one currently selected as "From") is a valid destination,
+// since the whole point is to retarget an existing number.
+// Lists every table currently in use (named or not) as "Name — [number]",
+// so the couple finds a table by the name they already gave it and only
+// ever edits the number next to it — the name itself is never touched here.
+function renderRenumberList(){
+  const wrap = document.getElementById('renumber-list');
+  const used = new Set();
+  Object.keys(tableConfig.labels).forEach(k=>{ const n = Number(k); if(Number.isInteger(n)) used.add(n); });
+  allEntries.forEach(({data})=>{ if(hasTable(data.tableNumber)) used.add(Number(data.tableNumber)); });
+
+  if(used.size === 0){
+    wrap.innerHTML = '<div class="merge-empty">No tables in use yet — name a table or assign a guest first.</div>';
+    return;
+  }
+
+  const rows = [...used].map(num=>{
+    const label = getTableLabel(num);
+    // Headcount for exactly this table number (not its merge partner, if any),
+    // matching how the Seating Chart counts seats at a single numbered table.
+    const count = allEntries.reduce((sum, {data}) => {
+      if(!hasTable(data.tableNumber) || Number(data.tableNumber) !== num || data.attending !== 'yes') return sum;
+      return sum + 1 + (data.plusOne === 'yes' ? 1 : 0);
+    }, 0);
+    return { num, label, count };
+  });
+  // Named tables first (alphabetically, matching how the couple thinks of
+  // them), unnamed ones after, sorted by their current number.
+  rows.sort((a,b)=>{
+    if(!!a.label !== !!b.label) return a.label ? -1 : 1;
+    if(a.label && b.label) return a.label.localeCompare(b.label);
+    return a.num - b.num;
+  });
+
+  wrap.innerHTML = rows.map(({num, label, count})=>`
+    <div class="rename-row" data-original="${num}">
+      <span class="rename-name">${label ? label : `Table ${num} <span class="rename-noname">(no name set)</span>`}</span>
+      <span class="rename-count">${count} guest${count===1?'':'s'}</span>
+      <input type="number" class="rename-number-input" value="${num}" min="0" max="30" inputmode="numeric">
+      <button class="rename-apply-btn" type="button" disabled>Save</button>
+    </div>
+  `).join('');
+
+  wrap.querySelectorAll('.rename-row').forEach(row=>{
+    const originalNum = Number(row.dataset.original);
+    const input = row.querySelector('.rename-number-input');
+    const btn = row.querySelector('.rename-apply-btn');
+    function refreshDirty(){
+      const val = parseInt(input.value, 10);
+      const valid = Number.isInteger(val) && val >= 0 && val <= 30 && val !== originalNum;
+      btn.disabled = !valid;
+      btn.classList.toggle('dirty', valid);
+    }
+    input.addEventListener('input', refreshDirty);
+    btn.addEventListener('click', async ()=>{
+      const newNum = parseInt(input.value, 10);
+      btn.disabled = true;
+      input.disabled = true;
+      const ok = await performRenumber(originalNum, newNum);
+      if(!ok){
+        btn.disabled = false;
+        input.disabled = false;
+        input.value = originalNum;
+        refreshDirty();
+      }
+      // on success, renderRenumberList() (called inside performRenumber) already
+      // rebuilds this whole list, so there's nothing left to re-enable here.
+    });
+  });
 }
 
 function renderMergeList(){
@@ -1062,6 +1167,7 @@ function renderMergeList(){
       try{
         await saveTableConfig();
         populateMergeSelects();
+    renderRenumberList();
         renderMergeList();
         renderSeating();
         refreshTableSelectOptions();
@@ -1430,6 +1536,7 @@ document.getElementById('mergeBtn').addEventListener('click', async ()=>{
   try{
     await saveTableConfig();
     populateMergeSelects();
+    renderRenumberList();
     renderMergeList();
     renderSeating();
     refreshTableSelectOptions();
@@ -1442,6 +1549,94 @@ document.getElementById('mergeBtn').addEventListener('click', async ()=>{
     btn.disabled = false;
   }
 });
+
+// ---------- RENUMBER TABLE ----------
+// Changing a table's number can't ever create a duplicate: if the destination
+// number is already occupied, those guests are unassigned (tableNumber -> null,
+// "Awaiting table") rather than merged in with the renumbered table's guests or
+// overwritten — their guest record is untouched, they just need reseating.
+// The table's NAME is never touched by this — it's carried over to the new
+// number untouched, which is the whole point of editing the number in place
+// next to the name in the Renumber Table list rather than renaming anything.
+// Returns true on success, false if blocked/cancelled/failed, so callers (the
+// per-row Save button in renderRenumberList) know whether to reset their input.
+async function performRenumber(oldNum, newNum){
+  if(!hasTable(oldNum) || !hasTable(newNum)){ alert('Choose a valid table number (0–30).'); return false; }
+  if(oldNum === newNum){ alert('Choose a different table number.'); return false; }
+
+  const movingGuests = allEntries.filter(({data}) => hasTable(data.tableNumber) && Number(data.tableNumber) === oldNum);
+  const bumpedGuests = allEntries.filter(({data}) => hasTable(data.tableNumber) && Number(data.tableNumber) === newNum);
+
+  // Work out what Table ${newNum}'s capacity will be AFTER the rename (its merge
+  // pairing, if any, comes from oldNum — see the tableConfig.merges rewrite below)
+  // and block the move the same way every other seating action in this dashboard
+  // blocks an over-capacity assignment, rather than silently overseating a table.
+  const futureGroupSize = getMergeGroup(oldNum).length;
+  const futureCapacity = futureGroupSize * TABLE_CAPACITY;
+  const movingHeadcount = movingGuests.reduce((sum, {data}) =>
+    sum + (data.attending === 'yes' ? 1 + (data.plusOne === 'yes' ? 1 : 0) : 0), 0);
+  if(movingHeadcount > futureCapacity){
+    alert(`Table ${oldNum}'s ${movingHeadcount} guests won't fit at Table ${newNum} (seats ${futureCapacity}). Merge Table ${newNum} with another table first, or choose a different number.`);
+    return false;
+  }
+
+  const tableName = getTableLabel(oldNum);
+  const subject = tableName ? `"${tableName}" (currently Table ${oldNum})` : `Table ${oldNum}`;
+  let confirmMsg = movingGuests.length
+    ? `Change ${subject} to Table ${newNum}?\n\n${movingGuests.length} guest${movingGuests.length === 1 ? '' : 's'} will move to Table ${newNum}. The table's name stays the same.`
+    : `Change ${subject} to Table ${newNum}?\n\nThis table has no guests assigned yet — just its number (and name, if any) will move.`;
+  if(bumpedGuests.length){
+    confirmMsg += `\n\nTable ${newNum} currently has ${bumpedGuests.length} guest${bumpedGuests.length === 1 ? '' : 's'} — ${bumpedGuests.length === 1 ? 'that guest' : 'they'} will be unassigned (moved to "Awaiting table") so no one is lost or duplicated. You can reseat them from the Seating Chart or Guest List afterward.`;
+  }
+  if(!window.confirm(confirmMsg)) return false;
+
+  // Snapshot everything touched so a failed save can be rolled back in memory.
+  const prevTableConfig = JSON.parse(JSON.stringify(tableConfig));
+  const prevTableNumbers = new Map();
+  movingGuests.concat(bumpedGuests).forEach(({key, data}) => prevTableNumbers.set(key, data.tableNumber));
+
+  bumpedGuests.forEach(({data}) => { data.tableNumber = null; });
+  movingGuests.forEach(({data}) => { data.tableNumber = newNum; });
+
+  // Carry the label from oldNum over to newNum untouched (newNum's old label,
+  // if it had one, belonged to the guests being unassigned, so it's dropped).
+  const oldLabel = tableConfig.labels[oldNum] ?? tableConfig.labels[String(oldNum)];
+  delete tableConfig.labels[oldNum]; delete tableConfig.labels[String(oldNum)];
+  delete tableConfig.labels[newNum]; delete tableConfig.labels[String(newNum)];
+  if(oldLabel) tableConfig.labels[newNum] = oldLabel;
+
+  // Merge pairs: a pair naming both oldNum and newNum would become a self-merge,
+  // so it's dropped; any OTHER pair naming newNum belonged to the guests being
+  // unassigned, so it's dropped too; a pair naming oldNum is kept and relabeled.
+  tableConfig.merges = tableConfig.merges
+    .filter(pair => !(pair.includes(oldNum) && pair.includes(newNum)))
+    .filter(pair => pair.includes(oldNum) || !pair.includes(newNum))
+    .map(pair => pair.map(n => n === oldNum ? newNum : n));
+
+  try{
+    await Promise.all(
+      movingGuests.concat(bumpedGuests).map(({key, data}) =>
+        db.collection(COLLECTION).doc(key).set({ value: JSON.stringify(data), shared: true, updatedAt: Date.now() })
+      )
+    );
+    await saveTableConfig();
+    renderStats();
+    renderChart();
+    renderSeating();
+    populateMergeSelects();
+    renderRenumberList();
+    renderMergeList();
+    refreshTableSelectOptions();
+    renderTable();
+    return true;
+  }catch(err){
+    movingGuests.concat(bumpedGuests).forEach(({key, data}) => { data.tableNumber = prevTableNumbers.get(key); });
+    tableConfig = prevTableConfig;
+    alert('Could not renumber that table — please check your connection and try again.');
+    console.error(err);
+    return false;
+  }
+}
 
 function updateBulkBar(){
   const bar = document.getElementById('bulkBar');
